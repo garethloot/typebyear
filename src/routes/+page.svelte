@@ -74,6 +74,45 @@
 
 	<p class="hint">25 words · Space or Enter to submit · Esc / ; to hear again</p>
 
+	<section class="why" aria-labelledby="why-title">
+		<h2 id="why-title">Why train this way?</h2>
+		<p>
+			Most typing apps show you the text and ask you to copy it. That trains your eyes to chase
+			characters on screen — not the skill you use when you’re actually writing.
+		</p>
+		<p>
+			Real typing is generative: you think a word (or hear one), then produce it on the keyboard
+			without looking it up letter by letter. Tabtype practices that loop:
+		</p>
+		<ul>
+			<li>
+				<strong>No peeking</strong> — the target isn’t on screen, so you can’t “cheat” by matching
+				shapes. You have to retrieve the spelling and fire the keys.
+			</li>
+			<li>
+				<strong>Closer to real work</strong> — dictation, notes from a call, coding from thought,
+				chat replies: you type from sound or intention, not from a line of text beside the caret.
+			</li>
+			<li>
+				<strong>Spelling under pressure</strong> — hearing a word and typing it forces orthography
+				and muscle memory together, instead of letting your eyes carry the spelling for you.
+			</li>
+			<li>
+				<strong>Attention on the keyboard feel</strong> — without visual copy to lean on, you’re
+				nudged toward touch typing: listen, trust your hands, glance at feedback only when you need
+				it.
+			</li>
+			<li>
+				<strong>Honest speed</strong> — time-to-type starts after the word is spoken. The metric
+				reflects how fast you produce the word, not how fast you can read and mirror it.
+			</li>
+		</ul>
+		<p>
+			Short 25-word sessions keep the focus on accuracy and recall, with history so you can see
+			whether that skill is actually improving.
+		</p>
+	</section>
+
 	{#if recent.length > 0}
 		<section class="recent" aria-labelledby="recent-title">
 			<div class="recent-head">
@@ -102,7 +141,7 @@
 		min-height: 100dvh;
 		display: flex;
 		flex-direction: column;
-		justify-content: center;
+		justify-content: flex-start;
 		padding: clamp(1.5rem, 5vw, 3.5rem);
 		max-width: 40rem;
 	}
@@ -205,11 +244,55 @@
 		animation: rise 0.7s ease-out 0.32s both;
 	}
 
-	.recent {
+	.why {
 		margin-top: 2.75rem;
 		padding-top: 1.5rem;
 		border-top: 1px solid color-mix(in srgb, var(--ink-soft) 25%, transparent);
 		animation: rise 0.7s ease-out 0.4s both;
+	}
+
+	.why h2 {
+		margin: 0 0 0.85rem;
+		font-family: var(--font-display);
+		font-size: 1.1rem;
+		font-weight: 500;
+		color: var(--ink);
+	}
+
+	.why p {
+		margin: 0 0 0.85rem;
+		font-size: 0.95rem;
+		line-height: 1.55;
+		color: var(--ink-soft);
+	}
+
+	.why ul {
+		margin: 0 0 0.85rem;
+		padding: 0 0 0 1.15rem;
+		display: grid;
+		gap: 0.55rem;
+	}
+
+	.why li {
+		font-size: 0.95rem;
+		line-height: 1.55;
+		color: var(--ink-soft);
+	}
+
+	.why li strong {
+		color: var(--ink);
+		font-weight: 600;
+	}
+
+	.why p:last-child {
+		margin-bottom: 0;
+	}
+
+	.recent {
+		margin-top: 2.75rem;
+		padding-top: 1.5rem;
+		border-top: 1px solid color-mix(in srgb, var(--ink-soft) 25%, transparent);
+		animation: rise 0.7s ease-out 0.48s both;
 	}
 
 	.recent h2 {
@@ -236,7 +319,7 @@
 
 	.results-link {
 		margin: 2.5rem 0 0;
-		animation: rise 0.7s ease-out 0.4s both;
+		animation: rise 0.7s ease-out 0.48s both;
 	}
 
 	.recent ul {

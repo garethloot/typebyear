@@ -131,7 +131,13 @@
 				</div>
 
 				<button type="button" class="start" onclick={start}>Start session</button>
-				<ShortcutHints items={[{ keys: 'Enter', label: 'start session' }]} />
+				<ShortcutHints
+					items={[
+						{ keys: 'Enter', label: 'start session' },
+						{ keys: 'Esc', label: 'replay while practicing' },
+						{ keys: 'Space', label: 'submit a word' }
+					]}
+				/>
 				<button type="button" class="secondary" onclick={startKeys}>Train keys</button>
 
 				{#if missedCount > 0}
@@ -145,7 +151,7 @@
 				{/if}
 			</div>
 
-			<p class="hint">25 prompts · during practice: Esc replay · Space / Enter submit</p>
+			<p class="hint">25 prompts per session</p>
 
 			{#if recent.length > 0}
 				<section class="recent" aria-labelledby="recent-title">

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import ShortcutHints from '$lib/components/ShortcutHints.svelte';
 	import { KEYBOARD_ROWS, KEY_PRESETS, saveKeySelection } from '$lib/keys';
 
 	let {
@@ -73,7 +74,7 @@
 		</button>
 	</div>
 	{#if selected.length > 0}
-		<p class="enter-hint">Enter to start</p>
+		<ShortcutHints items={[{ keys: 'Enter', label: 'start training' }]} />
 	{/if}
 </div>
 
@@ -207,13 +208,6 @@
 	.start:disabled {
 		opacity: 0.45;
 		cursor: not-allowed;
-	}
-
-	.enter-hint {
-		margin: 0;
-		font-size: 0.85rem;
-		color: var(--ink-soft);
-		opacity: 0.9;
 	}
 
 	@media (max-width: 520px) {

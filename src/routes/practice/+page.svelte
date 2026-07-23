@@ -6,6 +6,7 @@
 	import type { Attachment } from 'svelte/attachments';
 	import AppNav from '$lib/components/AppNav.svelte';
 	import KeyPicker from '$lib/components/KeyPicker.svelte';
+	import ShortcutHints from '$lib/components/ShortcutHints.svelte';
 	import { rankMissedWords, rankSlowKeys } from '$lib/history';
 	import {
 		loadSavedKeySelection,
@@ -251,7 +252,7 @@
 	{#if setupMode}
 		<section class="setup" aria-labelledby="setup-title">
 			<h1 id="setup-title">Choose keys</h1>
-			<p class="setup-lede">Select the characters to train, then press Enter or Start. Hear a key, type it.</p>
+			<p class="setup-lede">Select the characters to train, then start. Hear a key, type it.</p>
 			<KeyPicker bind:selected={selectedKeys} onStart={startKeysFromSelection} />
 		</section>
 	{:else if session.phase === 'done' && session.summary}
@@ -310,7 +311,9 @@
 				<a class="ghost linkish" href={resolve('/results')}>Results</a>
 				<button type="button" class="ghost" onclick={home}>Home</button>
 			</div>
-			<p class="again-hint">Enter to practice again</p>
+			<div class="shortcut-wrap">
+				<ShortcutHints items={[{ keys: 'Enter', label: 'practice again' }]} />
+			</div>
 		</section>
 	{:else}
 		<section
@@ -358,13 +361,17 @@
 				>
 					Hear again
 				</button>
-				<span class="keys">
-					{#if session.isKeysMode}
-						Type the key · Esc to hear again
-					{:else}
-						Space / Enter · Esc to hear again
-					{/if}
-				</span>
+				{#if session.isKeysMode}
+					<ShortcutHints items={[{ keys: 'Esc', label: 'hear again' }]} />
+				{:else}
+					<ShortcutHints
+						items={[
+							{ keys: 'Space', label: 'submit' },
+							{ keys: 'Enter', label: 'submit' },
+							{ keys: 'Esc', label: 'hear again' }
+						]}
+					/>
+				{/if}
 			</div>
 		</section>
 	{/if}
@@ -562,11 +569,6 @@
 		background: color-mix(in srgb, white 70%, var(--mist));
 	}
 
-	.keys {
-		font-size: 0.85rem;
-		color: var(--ink-soft);
-	}
-
 	.summary {
 		flex: 1;
 		display: flex;
@@ -647,11 +649,8 @@
 		gap: 0.75rem;
 	}
 
-	.again-hint {
-		margin: 0.85rem 0 0;
-		font-size: 0.85rem;
-		color: var(--ink-soft);
-		opacity: 0.9;
+	.shortcut-wrap {
+		margin-top: 0.85rem;
 	}
 
 	.primary,

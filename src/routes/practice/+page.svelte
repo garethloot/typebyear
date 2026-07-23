@@ -3,6 +3,8 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { onMount, tick } from 'svelte';
+	import type { Attachment } from 'svelte/attachments';
+	import AppNav from '$lib/components/AppNav.svelte';
 	import KeyPicker from '$lib/components/KeyPicker.svelte';
 	import { rankMissedWords, rankSlowKeys } from '$lib/history';
 	import {
@@ -21,10 +23,17 @@
 	} from '$lib/words';
 
 	let speechOk = $state(true);
-	let stageEl: HTMLElement | undefined = $state();
+	let stageEl: HTMLElement | undefined;
 	let setupMode = $state(false);
 	let setupLang = $state<Language>('en');
 	let selectedKeys = $state<string[]>([]);
+
+	const stageRef: Attachment<HTMLElement> = (element) => {
+		stageEl = element;
+		return () => {
+			if (stageEl === element) stageEl = undefined;
+		};
+	};
 
 	function isReplayKey(event: KeyboardEvent): boolean {
 		return event.key === 'Escape' || event.code === 'Escape';
@@ -203,17 +212,19 @@
 </script>
 
 <main class="practice">
-	<header class="top">
-		<a class="brand" href={resolve('/')} tabindex="-1" onclick={() => session.reset()}>TypeByEar</a>
-		{#if !setupMode && session.phase !== 'done'}
+	{#if setupMode || session.phase === 'done'}
+		<AppNav onBrandClick={() => session.reset()} />
+	{:else}
+		<header class="top">
+			<a class="brand" href={resolve('/')} tabindex="-1" onclick={() => session.reset()}>TypeByEar</a>
 			<p class="progress" aria-live="polite">
 				{#if modeTag(session.mode)}
 					<span class="mode-tag">{modeTag(session.mode)}</span>
 				{/if}
 				{session.progress.current} / {session.progress.total}
 			</p>
-		{/if}
-	</header>
+		</header>
+	{/if}
 
 	{#if setupMode}
 		<section class="setup" aria-labelledby="setup-title">
@@ -281,7 +292,7 @@
 	{:else}
 		<section
 			class="stage"
-			bind:this={stageEl}
+			{@attach stageRef}
 			tabindex="-1"
 			aria-label="Typing practice"
 		>

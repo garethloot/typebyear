@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
+	import AppNav from '$lib/components/AppNav.svelte';
 	import ProgressChart from '$lib/components/ProgressChart.svelte';
 	import {
 		formatSessionDate,
@@ -92,10 +93,7 @@
 </script>
 
 <main class="results">
-	<header class="top">
-		<a class="brand" href={resolve('/')}>TypeByEar</a>
-		<a class="back" href={resolve('/')}>Home</a>
-	</header>
+	<AppNav />
 
 	<h1>Results</h1>
 	<p class="lede">Sessions saved in this browser.</p>
@@ -268,27 +266,6 @@
 		margin: 0 auto;
 	}
 
-	.top {
-		display: flex;
-		align-items: baseline;
-		justify-content: space-between;
-		gap: 1rem;
-		margin-bottom: 1.75rem;
-	}
-
-	.brand {
-		font-family: var(--font-display);
-		font-size: 1.5rem;
-		font-weight: 700;
-		color: var(--teal-deep);
-		text-decoration: none;
-	}
-
-	.back {
-		font-size: 0.95rem;
-		color: var(--ink-soft);
-	}
-
 	h1 {
 		font-family: var(--font-display);
 		font-size: clamp(1.75rem, 4vw, 2.25rem);
@@ -321,16 +298,22 @@
 		.columns {
 			grid-template-columns: 1fr 1fr;
 			align-items: start;
+			gap: 0;
+		}
+
+		.column:first-child {
+			padding-right: 1.5rem;
 		}
 
 		.column + .column {
 			position: relative;
+			padding-left: 1.5rem;
 		}
 
 		.column + .column::before {
 			content: '';
 			position: absolute;
-			left: -1rem;
+			left: 0;
 			top: 0;
 			bottom: 0;
 			width: 1px;

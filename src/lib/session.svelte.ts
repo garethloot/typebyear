@@ -4,7 +4,8 @@ import { cancelSpeech, speak } from '$lib/speech';
 import {
 	pickSessionWords,
 	SESSION_SIZE,
-	type Language
+	type Language,
+	type PracticeMode
 } from '$lib/words';
 
 export type SessionPhase = 'idle' | 'active' | 'done';
@@ -29,6 +30,13 @@ export type SessionSummary = {
 	/** Median characters-per-minute over the TTT window */
 	cpm: number;
 	language: Language;
+	mode: PracticeMode;
+};
+
+export type StartOptions = {
+	/** When set, use these words instead of a random bank sample. */
+	words?: string[];
+	mode?: PracticeMode;
 };
 
 function median(values: number[]): number {
@@ -48,6 +56,7 @@ export function formatTtt(ms: number): string {
 
 class TypingSession {
 	language = $state<Language>('en');
+	mode = $state<PracticeMode>('random');
 	words = $state.raw<string[]>([]);
 	index = $state(0);
 	input = $state('');
@@ -81,14 +90,22 @@ class TypingSession {
 			accuracy,
 			tttMs: median(this.wordTimings.map((w) => w.tttMs)),
 			cpm: median(this.wordTimings.map((w) => w.cpm)),
-			language: this.language
+			language: this.language,
+			mode: this.mode
 		};
 	});
 
-	start(lang: Language) {
+	start(lang: Language, options: StartOptions = {}) {
+		const mode = options.mode ?? (options.words ? 'missed' : 'random');
+		const words =
+			options.words && options.words.length > 0
+				? options.words
+				: pickSessionWords(lang, SESSION_SIZE);
+
 		cancelSpeech();
 		this.language = lang;
-		this.words = pickSessionWords(lang, SESSION_SIZE);
+		this.mode = mode;
+		this.words = words;
 		this.index = 0;
 		this.input = '';
 		this.phase = 'active';
@@ -200,6 +217,7 @@ class TypingSession {
 		this.index = 0;
 		this.input = '';
 		this.phase = 'idle';
+		this.mode = 'random';
 		this.correctCount = 0;
 		this.completed = [];
 		this.wordTimings = [];

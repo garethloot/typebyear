@@ -133,3 +133,44 @@ export function formatSessionDate(ts: number): string {
 		minute: '2-digit'
 	}).format(new Date(ts));
 }
+
+export type MissedWordRank = {
+	word: string;
+	misses: number;
+};
+
+/**
+ * Rank target words that were marked incorrect, for one language.
+ * Higher miss count first; ties broken alphabetically.
+ */
+export async function rankMissedWords(
+	language: Language,
+	sessionLimit = 200
+): Promise<MissedWordRank[]> {
+	const sessions = await listSessions(sessionLimit);
+	const counts = new Map<string, number>();
+
+	for (const session of sessions) {
+		if (session.language !== language) continue;
+		for (const item of session.words) {
+			if (item.correct) continue;
+			counts.set(item.word, (counts.get(item.word) ?? 0) + 1);
+		}
+	}
+
+	return [...counts.entries()]
+		.map(([word, misses]) => ({ word, misses }))
+		.sort((a, b) => b.misses - a.misses || a.word.localeCompare(b.word));
+}
+
+/** Unique misspelled targets from a single session, most recent order preserved. */
+export function missedWordsFromSession(session: StoredSession): string[] {
+	const seen = new Set<string>();
+	const words: string[] = [];
+	for (const item of session.words) {
+		if (item.correct || seen.has(item.word)) continue;
+		seen.add(item.word);
+		words.push(item.word);
+	}
+	return words;
+}

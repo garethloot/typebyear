@@ -4,6 +4,7 @@
 	import {
 		formatSessionDate,
 		listSessions,
+		missedWordsFromSession,
 		type StoredSession
 	} from '$lib/history';
 	import { formatTtt } from '$lib/session.svelte';
@@ -71,7 +72,7 @@
 
 <main class="results">
 	<header class="top">
-		<a class="brand" href="/">Tabtype</a>
+		<a class="brand" href="/">TypeByEar</a>
 		<a class="back" href="/">Home</a>
 	</header>
 
@@ -147,6 +148,11 @@
 									<span class={['w', item.correct ? 'ok' : 'bad']}>{item.word}</span>
 								{/each}
 							</p>
+							{#if missedWordsFromSession(row).length > 0}
+								<p class="practice-missed">
+									<a href={`/practice?lang=${row.language}&mode=missed`}>Practice misspellings</a>
+								</p>
+							{/if}
 						{/if}
 					</li>
 				{/each}
@@ -304,5 +310,14 @@
 		text-decoration: underline;
 		text-decoration-thickness: 1px;
 		text-underline-offset: 0.18em;
+	}
+
+	.practice-missed {
+		margin: 0 0 0.85rem;
+		font-size: 0.9rem;
+	}
+
+	.practice-missed a {
+		color: var(--teal-deep);
 	}
 </style>

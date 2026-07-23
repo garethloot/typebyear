@@ -2,9 +2,15 @@
   import { goto } from "$app/navigation";
   import { page } from "$app/state";
   import { onMount, tick } from "svelte";
+  import { rankMissedWords } from "$lib/history";
   import { formatTtt, session } from "$lib/session.svelte";
   import { isSpeechAvailable } from "$lib/speech";
-  import { isLanguage } from "$lib/words";
+  import {
+    isLanguage,
+    isPracticeMode,
+    pickMissedSessionWords,
+    type Language,
+  } from "$lib/words";
 
   let speechOk = $state(true);
   let stageEl: HTMLElement | undefined = $state();
@@ -56,24 +62,57 @@
     stageEl?.focus({ preventScroll: true });
   }
 
+  async function startMissedSession(lang: Language) {
+    const ranked = await rankMissedWords(lang);
+    const words = pickMissedSessionWords(ranked);
+    if (words.length === 0) {
+      goto("/");
+      return false;
+    }
+    session.start(lang, { words, mode: "missed" });
+    return true;
+  }
+
   onMount(() => {
     speechOk = isSpeechAvailable();
-    const langParam = page.url.searchParams.get("lang");
-    if (!isLanguage(langParam)) {
-      goto("/");
-      return;
-    }
+    let cancelled = false;
 
-    session.start(langParam);
     // Capture on document so Esc isn't lost to other listeners
     document.addEventListener("keydown", onKeydown, true);
-    void focusStage();
 
-    return () => document.removeEventListener("keydown", onKeydown, true);
+    void (async () => {
+      const langParam = page.url.searchParams.get("lang");
+      if (!isLanguage(langParam)) {
+        goto("/");
+        return;
+      }
+
+      const modeParam = page.url.searchParams.get("mode");
+      const mode = isPracticeMode(modeParam) ? modeParam : "random";
+
+      if (mode === "missed") {
+        const started = await startMissedSession(langParam);
+        if (cancelled || !started) return;
+      } else {
+        session.start(langParam);
+      }
+
+      if (!cancelled) void focusStage();
+    })();
+
+    return () => {
+      cancelled = true;
+      document.removeEventListener("keydown", onKeydown, true);
+    };
   });
 
-  function again() {
-    session.start(session.language);
+  async function again() {
+    if (session.mode === "missed") {
+      const started = await startMissedSession(session.language);
+      if (!started) return;
+    } else {
+      session.start(session.language);
+    }
     void focusStage();
   }
 
@@ -86,10 +125,13 @@
 <main class="practice">
   <header class="top">
     <a class="brand" href="/" tabindex="-1" onclick={() => session.reset()}
-      >Tabtype</a
+      >TypeByEar</a
     >
     {#if session.phase !== "done"}
       <p class="progress" aria-live="polite">
+        {#if session.mode === "missed"}
+          <span class="mode-tag">Misspellings</span>
+        {/if}
         {session.progress.current} / {session.progress.total}
       </p>
     {/if}
@@ -98,8 +140,11 @@
   {#if session.phase === "done" && session.summary}
     {@const s = session.summary}
     <section class="summary" aria-labelledby="summary-title">
-      <p class="brand-echo">Tabtype</p>
+      <p class="brand-echo">TypeByEar</p>
       <h1 id="summary-title">Session complete</h1>
+      {#if s.mode === "missed"}
+        <p class="mode-note">Misspellings drill</p>
+      {/if}
       <p class="saved" role="status">Saved on this device</p>
       <ul class="stats">
         <li>
@@ -209,6 +254,21 @@
     font-variant-numeric: tabular-nums;
     color: var(--ink-soft);
     font-size: 0.95rem;
+    display: flex;
+    align-items: baseline;
+    gap: 0.55rem;
+  }
+
+  .mode-tag {
+    font-size: 0.8rem;
+    color: var(--teal-deep);
+    opacity: 0.85;
+  }
+
+  .mode-note {
+    margin: 0 0 0.35rem;
+    font-size: 0.9rem;
+    color: var(--teal-deep);
   }
 
   .stage {

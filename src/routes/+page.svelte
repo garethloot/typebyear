@@ -4,6 +4,7 @@
 	import {
 		formatSessionDate,
 		listSessions,
+		rankMissedWords,
 		type StoredSession
 	} from '$lib/history';
 	import { formatTtt } from '$lib/session.svelte';
@@ -13,6 +14,21 @@
 	let language = $state<Language>('en');
 	let speechOk = $state(true);
 	let recent = $state.raw<StoredSession[]>([]);
+	let missedCount = $state(0);
+
+	async function loadMissedCount(lang: Language) {
+		try {
+			const ranked = await rankMissedWords(lang);
+			missedCount = ranked.length;
+		} catch {
+			missedCount = 0;
+		}
+	}
+
+	function setLanguage(lang: Language) {
+		language = lang;
+		void loadMissedCount(lang);
+	}
 
 	onMount(() => {
 		speechOk = isSpeechAvailable();
@@ -23,10 +39,15 @@
 			.catch(() => {
 				recent = [];
 			});
+		void loadMissedCount(language);
 	});
 
 	function start() {
 		goto(`/practice?lang=${language}`);
+	}
+
+	function startMissed() {
+		goto(`/practice?lang=${language}&mode=missed`);
 	}
 
 	function langLabel(lang: Language): string {
@@ -35,7 +56,7 @@
 </script>
 
 <main class="home">
-	<p class="brand">Tabtype</p>
+	<p class="brand">TypeByEar</p>
 	<h1>Hear it. Type it.</h1>
 	<p class="lede">
 		Words stay hidden. The app speaks one; you type from memory. Letter colors show how you’re
@@ -54,7 +75,7 @@
 			<button
 				type="button"
 				class={['lang', language === 'en' && 'active']}
-				onclick={() => (language = 'en')}
+				onclick={() => setLanguage('en')}
 				aria-pressed={language === 'en'}
 			>
 				English
@@ -62,7 +83,7 @@
 			<button
 				type="button"
 				class={['lang', language === 'nl' && 'active']}
-				onclick={() => (language = 'nl')}
+				onclick={() => setLanguage('nl')}
 				aria-pressed={language === 'nl'}
 			>
 				Nederlands
@@ -70,6 +91,11 @@
 		</div>
 
 		<button type="button" class="start" onclick={start}>Start session</button>
+
+		{#if missedCount > 0}
+			<button type="button" class="missed" onclick={startMissed}>Train misspellings</button>
+			<p class="missed-hint">{missedCount} words you’ve missed</p>
+		{/if}
 	</div>
 
 	<p class="hint">25 words · Space or Enter to submit · Esc / ; to hear again</p>
@@ -82,7 +108,7 @@
 		</p>
 		<p>
 			Real typing is generative: you think a word (or hear one), then produce it on the keyboard
-			without looking it up letter by letter. Tabtype practices that loop:
+			without looking it up letter by letter. TypeByEar practices that loop:
 		</p>
 		<ul>
 			<li>
@@ -234,6 +260,31 @@
 
 	.start:active {
 		transform: translateY(1px);
+	}
+
+	.missed {
+		border: 1px solid color-mix(in srgb, var(--teal) 40%, transparent);
+		background: transparent;
+		color: var(--teal-deep);
+		padding: 0.7rem 1.35rem;
+		border-radius: 0.4rem;
+		font-weight: 600;
+		font-size: 0.95rem;
+		transition:
+			background 0.2s ease,
+			border-color 0.2s ease;
+	}
+
+	.missed:hover {
+		background: color-mix(in srgb, var(--teal) 10%, transparent);
+		border-color: var(--teal);
+	}
+
+	.missed-hint {
+		margin: -0.35rem 0 0;
+		font-size: 0.85rem;
+		color: var(--ink-soft);
+		opacity: 0.9;
 	}
 
 	.hint {

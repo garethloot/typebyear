@@ -1,4 +1,4 @@
-# Tabtype
+# TypeByEar
 
 **Hear it. Type it.**
 
@@ -8,7 +8,7 @@ Audio-first touch typing practice. Words stay hidden — the app speaks one, you
 
 Most typing apps show you the text and ask you to copy it. That trains your eyes to chase characters on screen — not the skill you use when you’re actually writing.
 
-Real typing is generative: you think a word (or hear one), then produce it on the keyboard without looking it up letter by letter. Tabtype practices that loop:
+Real typing is generative: you think a word (or hear one), then produce it on the keyboard without looking it up letter by letter. TypeByEar practices that loop:
 
 - **No peeking** — the target isn’t on screen, so you can’t “cheat” by matching shapes. You have to retrieve the spelling and fire the keys.
 - **Closer to real work** — dictation, notes from a call, coding from thought, chat replies: you type from sound or intention, not from a line of text beside the caret.

@@ -6,7 +6,7 @@
 </script>
 
 <svelte:head>
-	<title>Tabtype</title>
+	<title>TypeByEar</title>
 	<meta
 		name="description"
 		content="Audio-first touch typing — hear the word, type it from memory."

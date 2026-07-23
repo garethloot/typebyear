@@ -1,42 +1,73 @@
-# sv
+# Tabtype
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+**Hear it. Type it.**
 
-## Creating a project
+Audio-first touch typing practice. Words stay hidden — the app speaks one, you type it from memory. Letter colors show how you’re doing as you go.
 
-If you're seeing this, you've probably already done this step. Congrats!
+## Features
 
-```sh
-# create a new project
-npx sv create my-app
-```
+- **Audio-only prompts** — practice without reading the target word
+- **Live letter feedback** — characters turn correct / incorrect as you type
+- **English & Dutch** — switch language before starting a session
+- **25-word sessions** — short, focused rounds with accuracy, time-to-type, and CPM
+- **Replay anytime** — press `Esc` or `;` to hear the word again
+- **Local history** — results are saved in this browser (IndexedDB), with trend charts on the results page
 
-To recreate this project with the same configuration:
+## How to practice
 
-```sh
-# recreate this project
-npx sv@0.16.5 create --template minimal --types ts --no-install .
-```
+1. Choose **English** or **Nederlands** on the home page
+2. Click **Start session**
+3. Listen, then type the word
+4. Press **Space** or **Enter** to submit
+5. Review your summary, then practice again or open **Results** to track progress
+
+| Key | Action |
+| --- | --- |
+| Letters | Type the word |
+| Backspace | Delete last character |
+| Space / Enter | Submit |
+| Esc / `;` | Replay the spoken word |
+
+Speech uses the browser’s [Web Speech API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API). If speech isn’t available, you can still practice — wrong answers reveal the word.
+
+## Tech stack
+
+- [SvelteKit](https://svelte.dev/docs/kit) + [Svelte 5](https://svelte.dev)
+- TypeScript
+- Vite
+- IndexedDB for session history
 
 ## Developing
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
-
 ```sh
+npm install
 npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
 ```
+
+Open the app in a browser (or run `npm run dev -- --open`).
 
 ## Building
 
-To create a production version of your app:
-
 ```sh
 npm run build
+npm run preview
 ```
 
-You can preview the production build with `npm run preview`.
+To deploy, install a [SvelteKit adapter](https://svelte.dev/docs/kit/adapters) for your host if needed (`adapter-auto` is included by default).
 
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+## Project layout
+
+```
+src/
+  routes/           # Home, practice, and results pages
+  lib/
+    session.svelte.ts   # Session state & scoring
+    speech.ts           # TTS helpers
+    history.ts          # IndexedDB persistence
+    words/              # EN / NL word banks
+    components/         # Progress chart
+```
+
+## License
+
+Private / unpublished — adjust this section if you open-source the project.

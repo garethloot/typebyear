@@ -1,5 +1,6 @@
 import { compareChars, isExactMatch, type CharStatus } from '$lib/compare';
 import { saveSession } from '$lib/history';
+import { isKeysPracticeMode, keySpeechText } from '$lib/keys';
 import { cancelSpeech, speak } from '$lib/speech';
 import {
 	pickSessionWords,
@@ -19,6 +20,7 @@ export type WordTiming = {
 export type CompletedWord = {
 	word: string;
 	correct: boolean;
+	tttMs?: number;
 };
 
 export type SessionSummary = {
@@ -34,17 +36,19 @@ export type SessionSummary = {
 };
 
 export type StartOptions = {
-	/** When set, use these words instead of a random bank sample. */
+	/** When set, use these words/keys instead of a random bank sample. */
 	words?: string[];
 	mode?: PracticeMode;
+	/** Custom key selection for keys mode (Practice again). */
+	selectedKeys?: string[];
 };
 
 function median(values: number[]): number {
 	if (values.length === 0) return 0;
 	const sorted = [...values].sort((a, b) => a - b);
 	const mid = Math.floor(sorted.length / 2);
-	if (sorted.length % 2 === 1) return sorted[mid];
-	return Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+	if (sorted.length % 2 === 1) return sorted[mid]!;
+	return Math.round((sorted[mid - 1]! + sorted[mid]!) / 2);
 }
 
 /** Format TTT for display, e.g. 1420 → "1.4s". */
@@ -58,6 +62,8 @@ class TypingSession {
 	language = $state<Language>('en');
 	mode = $state<PracticeMode>('random');
 	words = $state.raw<string[]>([]);
+	/** Last custom key set for keys mode restart. */
+	selectedKeys = $state.raw<string[]>([]);
 	index = $state(0);
 	input = $state('');
 	phase = $state<SessionPhase>('idle');
@@ -79,6 +85,7 @@ class TypingSession {
 	});
 	charStatuses = $derived<CharStatus[]>(compareChars(this.input, this.target));
 	isDone = $derived(this.phase === 'done');
+	isKeysMode = $derived(isKeysPracticeMode(this.mode));
 
 	summary = $derived.by((): SessionSummary | null => {
 		if (this.phase !== 'done') return null;
@@ -106,6 +113,12 @@ class TypingSession {
 		this.language = lang;
 		this.mode = mode;
 		this.words = words;
+		this.selectedKeys =
+			mode === 'keys' && options.selectedKeys && options.selectedKeys.length > 0
+				? [...options.selectedKeys]
+				: mode === 'keys'
+					? [...new Set(words)]
+					: [];
 		this.index = 0;
 		this.input = '';
 		this.phase = 'active';
@@ -123,7 +136,11 @@ class TypingSession {
 		this.typingStartedAt = null;
 
 		const wordIndex = this.index;
-		speak(this.target, this.language, () => {
+		const text = isKeysPracticeMode(this.mode)
+			? keySpeechText(this.target, this.language)
+			: this.target;
+
+		speak(text, this.language, () => {
 			if (this.phase !== 'active') return;
 			if (this.index !== wordIndex) return;
 			this.typingStartedAt = Date.now();
@@ -137,6 +154,15 @@ class TypingSession {
 
 	typeChar(char: string) {
 		if (this.phase !== 'active') return;
+
+		if (isKeysPracticeMode(this.mode)) {
+			if (char.length !== 1) return;
+			// Single-key drill: one keystroke fills and ends the attempt
+			this.input = char;
+			this.wordCharsTyped += 1;
+			return;
+		}
+
 		if (!/^[a-z]$/.test(char)) return;
 		this.input += char;
 		this.wordCharsTyped += 1;
@@ -144,6 +170,7 @@ class TypingSession {
 
 	backspace() {
 		if (this.phase !== 'active') return;
+		if (isKeysPracticeMode(this.mode)) return;
 		if (this.input.length === 0) return;
 		this.input = this.input.slice(0, -1);
 	}
@@ -152,22 +179,27 @@ class TypingSession {
 		if (this.phase !== 'active' || !this.target) return;
 		if (this.input.length === 0) return;
 
-		this.recordWordTiming();
+		const tttMs = this.recordWordTiming();
 
 		const correct = isExactMatch(this.input, this.target);
 		if (correct) this.correctCount += 1;
 
-		this.completed = [...this.completed, { word: this.target, correct }];
+		this.completed = [
+			...this.completed,
+			{ word: this.target, correct, tttMs: tttMs ?? undefined }
+		];
 		this.advance();
 	}
 
-	private recordWordTiming() {
-		if (this.typingStartedAt === null) return;
+	/** Returns recorded TTT ms, or null if timing wasn't available. */
+	private recordWordTiming(): number | null {
+		if (this.typingStartedAt === null) return null;
 
 		const tttMs = Math.max(Date.now() - this.typingStartedAt, 1);
 		const chars = this.wordCharsTyped;
 		const cpm = Math.round(chars / (tttMs / 60000));
 		this.wordTimings = [...this.wordTimings, { tttMs, chars, cpm }];
+		return tttMs;
 	}
 
 	private advance() {
@@ -199,12 +231,17 @@ class TypingSession {
 		try {
 			await saveSession({
 				language: this.language,
+				mode: this.mode,
 				total,
 				correct: this.correctCount,
 				accuracy,
 				tttMs: median(tttValues),
 				cpm: median(cpmValues),
-				words: this.completed.map((w) => ({ word: w.word, correct: w.correct }))
+				words: this.completed.map((w) => ({
+					word: w.word,
+					correct: w.correct,
+					tttMs: w.tttMs
+				}))
 			});
 		} catch (err) {
 			console.warn('Could not save session to IndexedDB', err);
@@ -214,6 +251,7 @@ class TypingSession {
 	reset() {
 		cancelSpeech();
 		this.words = [];
+		this.selectedKeys = [];
 		this.index = 0;
 		this.input = '';
 		this.phase = 'idle';

@@ -3,8 +3,11 @@ import nl from './nl.json';
 
 export type Language = 'en' | 'nl';
 
-/** `random` = bank sample; `missed` = drilled from past incorrect words. */
-export type PracticeMode = 'random' | 'missed';
+/**
+ * `random` = bank sample; `missed` = drilled from past incorrect words;
+ * `keys` = custom character drill; `slow-keys` = slowest reaction keys.
+ */
+export type PracticeMode = 'random' | 'missed' | 'keys' | 'slow-keys';
 
 export const SESSION_SIZE = 25;
 
@@ -68,5 +71,5 @@ export function isLanguage(value: string | null): value is Language {
 }
 
 export function isPracticeMode(value: string | null): value is PracticeMode {
-	return value === 'random' || value === 'missed';
+	return value === 'random' || value === 'missed' || value === 'keys' || value === 'slow-keys';
 }

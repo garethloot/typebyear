@@ -3,8 +3,11 @@
 	import ProgressChart from '$lib/components/ProgressChart.svelte';
 	import {
 		formatSessionDate,
+		isKeysSession,
 		listSessions,
 		missedWordsFromSession,
+		modeLabel,
+		rankSlowKeys,
 		type StoredSession
 	} from '$lib/history';
 	import { formatTtt } from '$lib/session.svelte';
@@ -14,8 +17,9 @@
 
 	let sessions = $state.raw<StoredSession[]>([]);
 	let loading = $state(true);
-	let metric = $state<Metric>('accuracy');
+	let metric = $state<Metric>('ttt');
 	let openId = $state<number | null>(null);
+	let slowKeyLangs = $state.raw<Language[]>([]);
 
 	/** Oldest → newest for trend reading. */
 	const chronological = $derived([...sessions].reverse());
@@ -49,8 +53,15 @@
 
 	onMount(() => {
 		void listSessions(100)
-			.then((rows) => {
+			.then(async (rows) => {
 				sessions = rows;
+				const langs = [...new Set(rows.map((r) => r.language))];
+				const available: Language[] = [];
+				for (const lang of langs) {
+					const ranked = await rankSlowKeys(lang);
+					if (ranked.length > 0) available.push(lang);
+				}
+				slowKeyLangs = available;
 			})
 			.catch(() => {
 				sessions = [];
@@ -85,10 +96,29 @@
 		<p class="status">No sessions yet. Finish a practice run to see results here.</p>
 		<p><a href="/">Start practicing</a></p>
 	{:else}
+		{#if slowKeyLangs.length > 0}
+			<p class="slow-link">
+				{#each slowKeyLangs as lang, i (lang)}
+					{#if i > 0}<span aria-hidden="true"> · </span>{/if}
+					<a href={`/practice?lang=${lang}&mode=slow-keys`}
+						>Train slow keys ({langLabel(lang)})</a
+					>
+				{/each}
+			</p>
+		{/if}
+
 		<section class="chart-block" aria-labelledby="trend-title">
 			<div class="chart-head">
 				<h2 id="trend-title">Trend</h2>
 				<div class="metrics" role="group" aria-label="Chart metric">
+					<button
+						type="button"
+						class={['metric', metric === 'ttt' && 'active']}
+						onclick={() => (metric = 'ttt')}
+						aria-pressed={metric === 'ttt'}
+					>
+						TTT
+					</button>
 					<button
 						type="button"
 						class={['metric', metric === 'accuracy' && 'active']}
@@ -104,14 +134,6 @@
 						aria-pressed={metric === 'cpm'}
 					>
 						CPM
-					</button>
-					<button
-						type="button"
-						class={['metric', metric === 'ttt' && 'active']}
-						onclick={() => (metric = 'ttt')}
-						aria-pressed={metric === 'ttt'}
-					>
-						TTT
 					</button>
 				</div>
 			</div>
@@ -138,19 +160,37 @@
 						>
 							<span class="when">{formatSessionDate(row.completedAt)}</span>
 							<span class="meta">
-								{langLabel(row.language)} · {row.accuracy}% · {formatTtt(row.tttMs)} · {row.cpm} cpm
+								{langLabel(row.language)} · {modeLabel(row.mode)} · {row.accuracy}% · {formatTtt(
+									row.tttMs
+								)}
 							</span>
 						</button>
 
 						{#if openId === row.id}
-							<p class="words" aria-label="Words from this session">
+							<p
+								class="words"
+								aria-label={isKeysSession(row)
+									? 'Keys from this session'
+									: 'Words from this session'}
+							>
 								{#each row.words as item, i (i + item.word)}
-									<span class={['w', item.correct ? 'ok' : 'bad']}>{item.word}</span>
+									<span class={['w', item.correct ? 'ok' : 'bad']}>
+										{item.word}{#if isKeysSession(row) && item.tttMs != null}<span class="ttt"
+												>{formatTtt(item.tttMs)}</span
+											>{/if}
+									</span>
 								{/each}
 							</p>
 							{#if missedWordsFromSession(row).length > 0}
-								<p class="practice-missed">
+								<p class="practice-link">
 									<a href={`/practice?lang=${row.language}&mode=missed`}>Practice misspellings</a>
+								</p>
+							{/if}
+							{#if isKeysSession(row)}
+								<p class="practice-link">
+									<a href={`/practice?lang=${row.language}&mode=slow-keys`}>Practice slow keys</a>
+									·
+									<a href={`/practice?lang=${row.language}&mode=keys`}>Choose keys</a>
 								</p>
 							{/if}
 						{/if}
@@ -291,6 +331,16 @@
 		font-size: 0.95rem;
 	}
 
+	.slow-link {
+		margin: -1rem 0 1.5rem;
+		font-size: 0.95rem;
+		color: var(--ink-soft);
+	}
+
+	.slow-link a {
+		color: var(--teal-deep);
+	}
+
 	.words {
 		margin: 0 0 0.75rem;
 		display: flex;
@@ -299,6 +349,18 @@
 		font-family: var(--font-mono);
 		font-size: 0.9rem;
 		line-height: 1.6;
+	}
+
+	.w {
+		display: inline-flex;
+		align-items: baseline;
+		gap: 0.3rem;
+	}
+
+	.w .ttt {
+		font-family: var(--font-body);
+		font-size: 0.75rem;
+		color: var(--ink-soft);
 	}
 
 	.w.ok {
@@ -312,12 +374,12 @@
 		text-underline-offset: 0.18em;
 	}
 
-	.practice-missed {
+	.practice-link {
 		margin: 0 0 0.85rem;
 		font-size: 0.9rem;
 	}
 
-	.practice-missed a {
+	.practice-link a {
 		color: var(--teal-deep);
 	}
 </style>

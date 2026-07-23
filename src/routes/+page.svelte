@@ -4,7 +4,9 @@
 	import {
 		formatSessionDate,
 		listSessions,
+		modeLabel,
 		rankMissedWords,
+		rankSlowKeys,
 		type StoredSession
 	} from '$lib/history';
 	import { formatTtt } from '$lib/session.svelte';
@@ -15,19 +17,22 @@
 	let speechOk = $state(true);
 	let recent = $state.raw<StoredSession[]>([]);
 	let missedCount = $state(0);
+	let slowKeyCount = $state(0);
 
-	async function loadMissedCount(lang: Language) {
+	async function loadDrillCounts(lang: Language) {
 		try {
-			const ranked = await rankMissedWords(lang);
-			missedCount = ranked.length;
+			const [missed, slow] = await Promise.all([rankMissedWords(lang), rankSlowKeys(lang)]);
+			missedCount = missed.length;
+			slowKeyCount = slow.length;
 		} catch {
 			missedCount = 0;
+			slowKeyCount = 0;
 		}
 	}
 
 	function setLanguage(lang: Language) {
 		language = lang;
-		void loadMissedCount(lang);
+		void loadDrillCounts(lang);
 	}
 
 	onMount(() => {
@@ -39,15 +44,23 @@
 			.catch(() => {
 				recent = [];
 			});
-		void loadMissedCount(language);
+		void loadDrillCounts(language);
 	});
 
 	function start() {
 		goto(`/practice?lang=${language}`);
 	}
 
+	function startKeys() {
+		goto(`/practice?lang=${language}&mode=keys`);
+	}
+
 	function startMissed() {
 		goto(`/practice?lang=${language}&mode=missed`);
+	}
+
+	function startSlowKeys() {
+		goto(`/practice?lang=${language}&mode=slow-keys`);
 	}
 
 	function langLabel(lang: Language): string {
@@ -91,14 +104,20 @@
 		</div>
 
 		<button type="button" class="start" onclick={start}>Start session</button>
+		<button type="button" class="secondary" onclick={startKeys}>Train keys</button>
 
 		{#if missedCount > 0}
-			<button type="button" class="missed" onclick={startMissed}>Train misspellings</button>
-			<p class="missed-hint">{missedCount} words you’ve missed</p>
+			<button type="button" class="secondary" onclick={startMissed}>Train misspellings</button>
+			<p class="drill-hint">{missedCount} words you’ve missed</p>
+		{/if}
+
+		{#if slowKeyCount > 0}
+			<button type="button" class="secondary" onclick={startSlowKeys}>Train slow keys</button>
+			<p class="drill-hint">{slowKeyCount} keys with slower reactions</p>
 		{/if}
 	</div>
 
-	<p class="hint">25 words · Space or Enter to submit · Esc / ; to hear again</p>
+	<p class="hint">25 prompts · Esc to hear again · Keys mode trains letters, numbers & symbols</p>
 
 	<section class="why" aria-labelledby="why-title">
 		<h2 id="why-title">Why train this way?</h2>
@@ -150,8 +169,9 @@
 					<li>
 						<span class="when">{formatSessionDate(row.completedAt)}</span>
 						<span class="meta">
-							{langLabel(row.language)} · {row.accuracy}% · {formatTtt(row.tttMs)} · {row.cpm}
-							cpm
+							{langLabel(row.language)} · {modeLabel(row.mode)} · {row.accuracy}% · {formatTtt(
+								row.tttMs
+							)}
 						</span>
 					</li>
 				{/each}
@@ -262,7 +282,7 @@
 		transform: translateY(1px);
 	}
 
-	.missed {
+	.secondary {
 		border: 1px solid color-mix(in srgb, var(--teal) 40%, transparent);
 		background: transparent;
 		color: var(--teal-deep);
@@ -275,12 +295,12 @@
 			border-color 0.2s ease;
 	}
 
-	.missed:hover {
+	.secondary:hover {
 		background: color-mix(in srgb, var(--teal) 10%, transparent);
 		border-color: var(--teal);
 	}
 
-	.missed-hint {
+	.drill-hint {
 		margin: -0.35rem 0 0;
 		font-size: 0.85rem;
 		color: var(--ink-soft);

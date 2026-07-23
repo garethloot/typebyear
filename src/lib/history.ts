@@ -1,18 +1,22 @@
-import type { Language } from '$lib/words';
+import { SLOW_KEY_MIN_SAMPLES, type SlowKeyRank } from '$lib/keys';
+import type { Language, PracticeMode } from '$lib/words';
 
 const DB_NAME = 'tabtype';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE = 'sessions';
 
 export type StoredWord = {
 	word: string;
 	correct: boolean;
+	/** Reaction time (TTS end → submit), ms — set for keys sessions and newer word sessions. */
+	tttMs?: number;
 };
 
 export type StoredSession = {
 	id?: number;
 	completedAt: number;
 	language: Language;
+	mode: PracticeMode;
 	total: number;
 	correct: number;
 	accuracy: number;
@@ -23,6 +27,7 @@ export type StoredSession = {
 
 export type SessionResultInput = {
 	language: Language;
+	mode: PracticeMode;
 	total: number;
 	correct: number;
 	accuracy: number;
@@ -58,6 +63,13 @@ function req<T>(request: IDBRequest<T>): Promise<T> {
 	});
 }
 
+function normalizeSession(raw: StoredSession): StoredSession {
+	return {
+		...raw,
+		mode: raw.mode ?? 'random'
+	};
+}
+
 export function isIndexedDbAvailable(): boolean {
 	return typeof indexedDB !== 'undefined';
 }
@@ -72,6 +84,7 @@ export async function saveSession(result: SessionResultInput): Promise<number> {
 		const record: StoredSession = {
 			completedAt: Date.now(),
 			language: result.language,
+			mode: result.mode,
 			total: result.total,
 			correct: result.correct,
 			accuracy: result.accuracy,
@@ -114,7 +127,7 @@ export async function listSessions(limit = 20): Promise<StoredSession[]> {
 					resolve();
 					return;
 				}
-				results.push(cursor.value as StoredSession);
+				results.push(normalizeSession(cursor.value as StoredSession));
 				cursor.continue();
 			};
 		});
@@ -152,6 +165,7 @@ export async function rankMissedWords(
 
 	for (const session of sessions) {
 		if (session.language !== language) continue;
+		if (session.mode === 'keys' || session.mode === 'slow-keys') continue;
 		for (const item of session.words) {
 			if (item.correct) continue;
 			counts.set(item.word, (counts.get(item.word) ?? 0) + 1);
@@ -165,6 +179,7 @@ export async function rankMissedWords(
 
 /** Unique misspelled targets from a single session, most recent order preserved. */
 export function missedWordsFromSession(session: StoredSession): string[] {
+	if (session.mode === 'keys' || session.mode === 'slow-keys') return [];
 	const seen = new Set<string>();
 	const words: string[] = [];
 	for (const item of session.words) {
@@ -173,4 +188,66 @@ export function missedWordsFromSession(session: StoredSession): string[] {
 		words.push(item.word);
 	}
 	return words;
+}
+
+function median(values: number[]): number {
+	if (values.length === 0) return 0;
+	const sorted = [...values].sort((a, b) => a - b);
+	const mid = Math.floor(sorted.length / 2);
+	if (sorted.length % 2 === 1) return sorted[mid]!;
+	return Math.round((sorted[mid - 1]! + sorted[mid]!) / 2);
+}
+
+/**
+ * Rank keys by median reaction time among correct presses (slowest first).
+ * Only includes keys with at least SLOW_KEY_MIN_SAMPLES correct timed hits.
+ */
+export async function rankSlowKeys(
+	language: Language,
+	sessionLimit = 200
+): Promise<SlowKeyRank[]> {
+	const sessions = await listSessions(sessionLimit);
+	const samples = new Map<string, number[]>();
+
+	for (const session of sessions) {
+		if (session.language !== language) continue;
+		if (session.mode !== 'keys' && session.mode !== 'slow-keys') continue;
+		for (const item of session.words) {
+			if (!item.correct) continue;
+			if (item.tttMs == null || item.tttMs <= 0) continue;
+			if (item.word.length !== 1) continue;
+			const list = samples.get(item.word) ?? [];
+			list.push(item.tttMs);
+			samples.set(item.word, list);
+		}
+	}
+
+	return [...samples.entries()]
+		.map(([key, times]) => ({
+			key,
+			medianTttMs: median(times),
+			samples: times.length
+		}))
+		.filter((r) => r.samples >= SLOW_KEY_MIN_SAMPLES)
+		.sort(
+			(a, b) =>
+				b.medianTttMs - a.medianTttMs || a.key.localeCompare(b.key, undefined, { sensitivity: 'variant' })
+		);
+}
+
+export function isKeysSession(session: StoredSession): boolean {
+	return session.mode === 'keys' || session.mode === 'slow-keys';
+}
+
+export function modeLabel(mode: PracticeMode): string {
+	switch (mode) {
+		case 'missed':
+			return 'Misspellings';
+		case 'keys':
+			return 'Keys';
+		case 'slow-keys':
+			return 'Slow keys';
+		default:
+			return 'Words';
+	}
 }

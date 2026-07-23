@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
 	import {
 		formatSessionDate,
@@ -48,19 +49,19 @@
 	});
 
 	function start() {
-		goto(`/practice?lang=${language}`);
+		goto(resolve(`/practice?lang=${language}`));
 	}
 
 	function startKeys() {
-		goto(`/practice?lang=${language}&mode=keys`);
+		goto(resolve(`/practice?lang=${language}&mode=keys`));
 	}
 
 	function startMissed() {
-		goto(`/practice?lang=${language}&mode=missed`);
+		goto(resolve(`/practice?lang=${language}&mode=missed`));
 	}
 
 	function startSlowKeys() {
-		goto(`/practice?lang=${language}&mode=slow-keys`);
+		goto(resolve(`/practice?lang=${language}&mode=slow-keys`));
 	}
 
 	function langLabel(lang: Language): string {
@@ -162,7 +163,7 @@
 		<section class="recent" aria-labelledby="recent-title">
 			<div class="recent-head">
 				<h2 id="recent-title">Recent sessions</h2>
-				<a class="all" href="/results">View all results</a>
+				<a class="all" href={resolve('/results')}>View all results</a>
 			</div>
 			<ul>
 				{#each recent as row (row.id)}
@@ -178,7 +179,7 @@
 			</ul>
 		</section>
 	{:else}
-		<p class="results-link"><a href="/results">View results</a></p>
+		<p class="results-link"><a href={resolve('/results')}>View results</a></p>
 	{/if}
 </main>
 

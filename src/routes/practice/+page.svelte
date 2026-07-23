@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { onMount, tick } from 'svelte';
 	import KeyPicker from '$lib/components/KeyPicker.svelte';
@@ -85,7 +86,7 @@
 		const ranked = await rankMissedWords(lang);
 		const words = pickMissedSessionWords(ranked);
 		if (words.length === 0) {
-			goto('/');
+			goto(resolve('/'));
 			return false;
 		}
 		session.start(lang, { words, mode: 'missed' });
@@ -96,7 +97,7 @@
 		const ranked = await rankSlowKeys(lang);
 		const keys = pickSlowKeySession(ranked);
 		if (keys.length === 0) {
-			goto('/');
+			goto(resolve('/'));
 			return false;
 		}
 		session.start(lang, { words: keys, mode: 'slow-keys' });
@@ -124,7 +125,7 @@
 		void (async () => {
 			const langParam = page.url.searchParams.get('lang');
 			if (!isLanguage(langParam)) {
-				goto('/');
+				goto(resolve('/'));
 				return;
 			}
 
@@ -183,7 +184,7 @@
 
 	function home() {
 		session.reset();
-		goto('/');
+		goto(resolve('/'));
 	}
 
 	function modeTag(mode: PracticeMode): string | null {
@@ -203,7 +204,7 @@
 
 <main class="practice">
 	<header class="top">
-		<a class="brand" href="/" tabindex="-1" onclick={() => session.reset()}>TypeByEar</a>
+		<a class="brand" href={resolve('/')} tabindex="-1" onclick={() => session.reset()}>TypeByEar</a>
 		{#if !setupMode && session.phase !== 'done'}
 			<p class="progress" aria-live="polite">
 				{#if modeTag(session.mode)}
@@ -273,7 +274,7 @@
 			{/if}
 			<div class="actions">
 				<button type="button" class="primary" onclick={again}>Practice again</button>
-				<a class="ghost linkish" href="/results">Results</a>
+				<a class="ghost linkish" href={resolve('/results')}>Results</a>
 				<button type="button" class="ghost" onclick={home}>Home</button>
 			</div>
 		</section>

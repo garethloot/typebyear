@@ -69,7 +69,20 @@ npm run build
 npm run preview
 ```
 
-To deploy, install a [SvelteKit adapter](https://svelte.dev/docs/kit/adapters) for your host if needed (`adapter-auto` is included by default).
+## Live demo
+
+**https://garethloot.github.io/typebyear/**
+
+## Deploy (GitHub Pages)
+
+This app uses [`@sveltejs/adapter-static`](https://svelte.dev/docs/kit/adapter-static) and deploys from `.github/workflows/deploy.yml` on every push to `main`.
+
+Local production build with the same base path:
+
+```sh
+BASE_PATH=/typebyear npm run build
+BASE_PATH=/typebyear npm run preview
+```
 
 ## Project layout
 

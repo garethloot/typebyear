@@ -12,11 +12,13 @@
 		rankSlowKeys,
 		type StoredSession
 	} from '$lib/history';
+	import { loadPrefs, savePrefs, SESSION_LENGTHS, type SessionLength } from '$lib/prefs';
 	import { formatTtt } from '$lib/session.svelte';
 	import { isSpeechAvailable } from '$lib/speech';
 	import type { Language } from '$lib/words';
 
 	let language = $state<Language>('en');
+	let sessionLength = $state<SessionLength>(25);
 	let speechOk = $state(true);
 	let recent = $state.raw<StoredSession[]>([]);
 	let missedCount = $state(0);
@@ -35,11 +37,20 @@
 
 	function setLanguage(lang: Language) {
 		language = lang;
+		savePrefs({ language: lang });
 		void loadDrillCounts(lang);
+	}
+
+	function setSessionLength(length: SessionLength) {
+		sessionLength = length;
+		savePrefs({ sessionLength: length });
 	}
 
 	onMount(() => {
 		speechOk = isSpeechAvailable();
+		const prefs = loadPrefs();
+		language = prefs.language;
+		sessionLength = prefs.sessionLength;
 		void listSessions(8)
 			.then((rows) => {
 				recent = rows;
@@ -130,11 +141,24 @@
 					</button>
 				</div>
 
+				<div class="langs" role="group" aria-label="Session length">
+					{#each SESSION_LENGTHS as length (length)}
+						<button
+							type="button"
+							class={['lang', sessionLength === length && 'active']}
+							onclick={() => setSessionLength(length)}
+							aria-pressed={sessionLength === length}
+						>
+							{length}
+						</button>
+					{/each}
+				</div>
+
 				<button type="button" class="start" onclick={start}>Start session</button>
 				<ShortcutHints
 					items={[
 						{ keys: 'Enter', label: 'start session' },
-						{ keys: 'Esc', label: 'replay while practicing' },
+						{ keys: 'Esc', label: 'replay · hold to peek while practicing' },
 						{ keys: 'Space', label: 'submit a word' }
 					]}
 				/>
@@ -151,7 +175,7 @@
 				{/if}
 			</div>
 
-			<p class="hint">25 prompts per session</p>
+			<p class="hint">{sessionLength} prompts per session</p>
 
 			{#if recent.length > 0}
 				<section class="recent" aria-labelledby="recent-title">
@@ -211,8 +235,8 @@
 				</li>
 			</ul>
 			<p>
-				Short 25-word sessions keep the focus on accuracy and recall, with history so you can see
-				whether that skill is actually improving.
+				Short sessions keep the focus on accuracy and recall, with history so you can see whether
+				that skill is actually improving.
 			</p>
 		</section>
 	</div>

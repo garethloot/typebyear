@@ -16,22 +16,22 @@ Real typing is generative: you think a word (or hear one), then produce it on th
 - **Attention on the keyboard feel** — without visual copy to lean on, you’re nudged toward touch typing: listen, trust your hands, glance at feedback only when you need it.
 - **Honest speed** — time-to-type starts after the word is spoken. The metric reflects how fast you produce the word, not how fast you can read and mirror it.
 
-Short 25-word sessions keep the focus on accuracy and recall, with history so you can see whether that skill is actually improving.
+Short sessions keep the focus on accuracy and recall, with history so you can see whether that skill is actually improving.
 
 ## Features
 
 - **Audio-only prompts** — practice without reading the target word
 - **Live letter feedback** — characters turn correct / incorrect as you type
-- **English & Dutch** — switch language before starting a session
-- **25-prompt sessions** — short, focused rounds with accuracy, time-to-type, and CPM
+- **English & Dutch** — switch language before starting a session (preference is saved in this browser)
+- **Session length** — choose 10, 25, or 50 prompts per round (saved preference)
 - **Keys mode** — pick letters, numbers, and symbols on a keyboard; hear a key, type it
 - **Slow keys** — drill characters with the slowest hearing→type reaction
-- **Replay anytime** — press `Esc` to hear the prompt again
+- **Replay & peek** — press `Esc` to hear the prompt again; hold `Esc` to briefly show the target
 - **Local history** — results are saved in this browser (IndexedDB), with trend charts on the results page
 
 ## How to practice
 
-1. Choose **English** or **Nederlands** on the home page
+1. Choose **English** or **Nederlands** and a session length on the home page
 2. Click **Start session** (words) or **Train keys** (characters)
 3. Listen, then type what you heard
 4. For words: press **Space** or **Enter** to submit. For keys: typing the character submits.
@@ -43,6 +43,7 @@ Short 25-word sessions keep the focus on accuracy and recall, with history so yo
 | Backspace | Delete last character (words) |
 | Space / Enter | Submit (words) |
 | Esc | Replay the spoken prompt |
+| Hold Esc | Peek at the target while held |
 
 Speech uses the browser’s [Web Speech API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API). If speech isn’t available, you can still practice — wrong answers reveal the word.
 
@@ -93,9 +94,10 @@ src/
     session.svelte.ts   # Session state & scoring
     speech.ts           # TTS helpers
     history.ts          # IndexedDB persistence
+    prefs.ts            # Language & session-length preferences
     keys.ts             # Key layouts, presets, slow-key ranking helpers
     words/              # EN / NL word banks
-    components/         # Progress chart, key picker
+    components/         # Progress chart, key picker, shortcut hints
 ```
 
 ## License

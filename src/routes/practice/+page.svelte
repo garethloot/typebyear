@@ -13,6 +13,7 @@
 		pickKeySession,
 		pickSlowKeySession
 	} from '$lib/keys';
+	import { loadPrefs } from '$lib/prefs';
 	import { formatTtt, session } from '$lib/session.svelte';
 	import { isSpeechAvailable } from '$lib/speech';
 	import {
@@ -23,11 +24,15 @@
 		type PracticeMode
 	} from '$lib/words';
 
+	const PEEK_HOLD_MS = 400;
+
 	let speechOk = $state(true);
 	let stageEl: HTMLElement | undefined;
 	let setupMode = $state(false);
 	let setupLang = $state<Language>('en');
 	let selectedKeys = $state<string[]>([]);
+	let peekVisible = $state(false);
+	let peekTimer: ReturnType<typeof setTimeout> | null = null;
 
 	const stageRef: Attachment<HTMLElement> = (element) => {
 		stageEl = element;
@@ -36,6 +41,18 @@
 		};
 	};
 
+	function sessionCount() {
+		return loadPrefs().sessionLength;
+	}
+
+	function clearPeek() {
+		if (peekTimer != null) {
+			clearTimeout(peekTimer);
+			peekTimer = null;
+		}
+		peekVisible = false;
+	}
+
 	function isReplayKey(event: KeyboardEvent): boolean {
 		return event.key === 'Escape' || event.code === 'Escape';
 	}
@@ -43,6 +60,11 @@
 	function isActivatable(target: EventTarget | null): boolean {
 		if (!(target instanceof Element)) return false;
 		return Boolean(target.closest('button, a, [role="button"]'));
+	}
+
+	function onKeyup(event: KeyboardEvent) {
+		if (!isReplayKey(event)) return;
+		clearPeek();
 	}
 
 	function onKeydown(event: KeyboardEvent) {
@@ -68,7 +90,13 @@
 		if (isReplayKey(event)) {
 			event.preventDefault();
 			event.stopImmediatePropagation();
+			if (event.repeat) return;
 			session.replay();
+			if (peekTimer != null) clearTimeout(peekTimer);
+			peekTimer = setTimeout(() => {
+				peekVisible = true;
+				peekTimer = null;
+			}, PEEK_HOLD_MS);
 			return;
 		}
 
@@ -116,7 +144,7 @@
 
 	async function startMissedSession(lang: Language) {
 		const ranked = await rankMissedWords(lang);
-		const words = pickMissedSessionWords(ranked);
+		const words = pickMissedSessionWords(ranked, sessionCount());
 		if (words.length === 0) {
 			goto(resolve('/'));
 			return false;
@@ -127,7 +155,7 @@
 
 	async function startSlowKeysSession(lang: Language) {
 		const ranked = await rankSlowKeys(lang);
-		const keys = pickSlowKeySession(ranked);
+		const keys = pickSlowKeySession(ranked, sessionCount());
 		if (keys.length === 0) {
 			goto(resolve('/'));
 			return false;
@@ -137,7 +165,7 @@
 	}
 
 	function startKeysFromSelection() {
-		const keys = pickKeySession(selectedKeys);
+		const keys = pickKeySession(selectedKeys, sessionCount());
 		if (keys.length === 0) return;
 		setupMode = false;
 		session.start(setupLang, {
@@ -153,6 +181,7 @@
 		let cancelled = false;
 
 		document.addEventListener('keydown', onKeydown, true);
+		document.addEventListener('keyup', onKeyup, true);
 
 		void (async () => {
 			const langParam = page.url.searchParams.get('lang');
@@ -179,7 +208,7 @@
 				const started = await startMissedSession(langParam);
 				if (cancelled || !started) return;
 			} else {
-				session.start(langParam);
+				session.start(langParam, { count: sessionCount() });
 			}
 
 			if (!cancelled) void focusStage();
@@ -188,10 +217,13 @@
 		return () => {
 			cancelled = true;
 			document.removeEventListener('keydown', onKeydown, true);
+			document.removeEventListener('keyup', onKeyup, true);
+			clearPeek();
 		};
 	});
 
 	async function again() {
+		clearPeek();
 		if (session.mode === 'missed') {
 			const started = await startMissedSession(session.language);
 			if (!started) return;
@@ -201,7 +233,7 @@
 		} else if (session.mode === 'keys') {
 			const pool =
 				session.selectedKeys.length > 0 ? session.selectedKeys : [...new Set(session.words)];
-			const keys = pickKeySession(pool);
+			const keys = pickKeySession(pool, sessionCount());
 			if (keys.length === 0) return;
 			session.start(session.language, {
 				words: keys,
@@ -209,12 +241,13 @@
 				selectedKeys: pool
 			});
 		} else {
-			session.start(session.language);
+			session.start(session.language, { count: sessionCount() });
 		}
 		void focusStage();
 	}
 
 	function home() {
+		clearPeek();
 		session.reset();
 		goto(resolve('/'));
 	}
@@ -340,6 +373,10 @@
 				</p>
 			{/if}
 
+			{#if peekVisible}
+				<p class="peek" aria-live="polite">{session.target}</p>
+			{/if}
+
 			<p class="typed" aria-live="polite">
 				{#if session.input.length === 0}
 					<span class="caret" aria-hidden="true"></span>
@@ -362,13 +399,13 @@
 					Hear again
 				</button>
 				{#if session.isKeysMode}
-					<ShortcutHints items={[{ keys: 'Esc', label: 'hear again' }]} />
+					<ShortcutHints items={[{ keys: 'Esc', label: 'hear again · hold to peek' }]} />
 				{:else}
 					<ShortcutHints
 						items={[
 							{ keys: 'Space', label: 'submit' },
 							{ keys: 'Enter', label: 'submit' },
-							{ keys: 'Esc', label: 'hear again' }
+							{ keys: 'Esc', label: 'hear again · hold to peek' }
 						]}
 					/>
 				{/if}
@@ -519,6 +556,16 @@
 		justify-content: center;
 		align-items: center;
 		gap: 0.05em;
+	}
+
+	.peek {
+		margin: 0;
+		font-family: var(--font-mono);
+		font-size: clamp(1.1rem, 3vw, 1.45rem);
+		font-weight: 500;
+		letter-spacing: 0.04em;
+		color: var(--ink-soft);
+		opacity: 0.85;
 	}
 
 	.placeholder {

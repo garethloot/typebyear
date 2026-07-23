@@ -41,6 +41,8 @@ export type StartOptions = {
 	mode?: PracticeMode;
 	/** Custom key selection for keys mode (Practice again). */
 	selectedKeys?: string[];
+	/** Prompt count for random bank sessions (defaults to SESSION_SIZE). */
+	count?: number;
 };
 
 function median(values: number[]): number {
@@ -104,10 +106,11 @@ class TypingSession {
 
 	start(lang: Language, options: StartOptions = {}) {
 		const mode = options.mode ?? (options.words ? 'missed' : 'random');
+		const count = options.count ?? SESSION_SIZE;
 		const words =
 			options.words && options.words.length > 0
 				? options.words
-				: pickSessionWords(lang, SESSION_SIZE);
+				: pickSessionWords(lang, count);
 
 		cancelSpeech();
 		this.language = lang;

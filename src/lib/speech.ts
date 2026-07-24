@@ -2,7 +2,8 @@ import type { Language } from '$lib/words';
 
 const LANG_TAG: Record<Language, string> = {
 	en: 'en-US',
-	nl: 'nl-NL'
+	nl: 'nl-NL',
+	ts: 'en-US'
 };
 
 const VOICE_BOOST: Array<{ match: RegExp; score: number }> = [

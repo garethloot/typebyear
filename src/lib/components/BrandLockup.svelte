@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import logo from '$lib/assets/logo.svg';
 
 	type Props = {
 		href?: string;
@@ -16,12 +15,10 @@
 
 {#if link}
 	<a class={['lockup', size]} {href} {onclick} aria-label="TypeByEar">
-		<img class="mark" src={logo} alt="" width="122" height="100" />
 		<span class="wordmark">TypeByEar</span>
 	</a>
 {:else}
 	<p class={['lockup', size]} aria-label="TypeByEar">
-		<img class="mark" src={logo} alt="" width="122" height="100" />
 		<span class="wordmark">TypeByEar</span>
 	</p>
 {/if}
@@ -30,7 +27,7 @@
 	.lockup {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.55rem;
+		gap: 0;
 		margin: 0;
 		color: var(--teal-deep);
 		text-decoration: none;
@@ -40,13 +37,6 @@
 
 	.lockup.nav {
 		flex: 1 1 auto;
-	}
-
-	.mark {
-		display: block;
-		flex-shrink: 0;
-		width: auto;
-		height: 1.35rem;
 	}
 
 	.wordmark {
@@ -63,18 +53,9 @@
 		font-size: 1.35rem;
 	}
 
-	.nav .mark {
-		height: 1.35rem;
-	}
-
 	.hero {
-		gap: 0.85rem;
 		margin: 0 0 1.25rem;
 		animation: rise 0.7s ease-out both;
-	}
-
-	.hero .mark {
-		height: clamp(2.5rem, 7vw, 3.75rem);
 	}
 
 	.hero .wordmark {
@@ -93,12 +74,7 @@
 	}
 
 	.echo {
-		gap: 0.65rem;
 		margin: 0 0 0.35rem;
-	}
-
-	.echo .mark {
-		height: 1.75rem;
 	}
 
 	.echo .wordmark {
@@ -108,10 +84,6 @@
 	@media (max-width: 30rem) {
 		.nav .wordmark {
 			font-size: 1.15rem;
-		}
-
-		.nav .mark {
-			height: 1.15rem;
 		}
 	}
 </style>

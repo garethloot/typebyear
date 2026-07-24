@@ -79,7 +79,9 @@
 	}
 
 	function langLabel(lang: Language): string {
-		return lang === 'nl' ? 'NL' : 'EN';
+		if (lang === 'nl') return 'NL';
+		if (lang === 'ts') return 'TS';
+		return 'EN';
 	}
 
 	function isTypingTarget(target: EventTarget | null): boolean {
@@ -141,6 +143,14 @@
 							aria-pressed={language === 'nl'}
 						>
 							Nederlands
+						</button>
+						<button
+							type="button"
+							class={['lang', language === 'ts' && 'active']}
+							onclick={() => setLanguage('ts')}
+							aria-pressed={language === 'ts'}
+						>
+							TypeScript
 						</button>
 					</div>
 				</div>

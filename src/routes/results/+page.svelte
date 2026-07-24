@@ -167,7 +167,9 @@
 	}
 
 	function langLabel(lang: Language): string {
-		return lang === 'nl' ? 'NL' : 'EN';
+		if (lang === 'nl') return 'NL';
+		if (lang === 'ts') return 'TS';
+		return 'EN';
 	}
 
 	function toggle(id: number | undefined) {

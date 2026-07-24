@@ -1,7 +1,8 @@
 import en from './en.json';
 import nl from './nl.json';
+import ts from './ts.json';
 
-export type Language = 'en' | 'nl';
+export type Language = 'en' | 'nl' | 'ts';
 
 /**
  * `random` = bank sample; `missed` = drilled from past incorrect words;
@@ -13,7 +14,8 @@ export const SESSION_SIZE = 25;
 
 const banks: Record<Language, string[]> = {
 	en,
-	nl
+	nl,
+	ts
 };
 
 export function shuffle<T>(items: T[]): T[] {
@@ -67,7 +69,7 @@ export function pickMissedSessionWords(
 }
 
 export function isLanguage(value: string | null): value is Language {
-	return value === 'en' || value === 'nl';
+	return value === 'en' || value === 'nl' || value === 'ts';
 }
 
 export function isPracticeMode(value: string | null): value is PracticeMode {

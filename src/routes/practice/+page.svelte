@@ -9,7 +9,9 @@
 	import ShortcutHints from '$lib/components/ShortcutHints.svelte';
 	import { rankMissedWords, rankSlowKeys } from '$lib/history';
 	import {
+		keyPresetLabel,
 		loadSavedKeySelection,
+		matchKeyPreset,
 		pickKeySession,
 		pickSlowKeySession
 	} from '$lib/keys';
@@ -168,10 +170,12 @@
 		const keys = pickKeySession(selectedKeys, sessionCount());
 		if (keys.length === 0) return;
 		setupMode = false;
+		const keyPreset = matchKeyPreset(selectedKeys);
 		session.start(setupLang, {
 			words: keys,
 			mode: 'keys',
-			selectedKeys
+			selectedKeys,
+			keyPreset
 		});
 		void focusStage();
 	}
@@ -238,7 +242,8 @@
 			session.start(session.language, {
 				words: keys,
 				mode: 'keys',
-				selectedKeys: pool
+				selectedKeys: pool,
+				keyPreset: session.keyPreset ?? matchKeyPreset(pool)
 			});
 		} else {
 			session.start(session.language, { count: sessionCount() });
@@ -261,7 +266,10 @@
 
 	function modeNote(mode: PracticeMode): string | null {
 		if (mode === 'missed') return 'Misspellings drill';
-		if (mode === 'keys') return 'Keys drill';
+		if (mode === 'keys') {
+			const preset = keyPresetLabel(session.keyPreset);
+			return preset ? `Keys drill · ${preset}` : 'Keys drill';
+		}
 		if (mode === 'slow-keys') return 'Slow keys drill';
 		return null;
 	}
@@ -420,6 +428,8 @@
 		display: flex;
 		flex-direction: column;
 		padding: clamp(1.25rem, 4vw, 2.5rem);
+		min-width: 0;
+		overflow-x: clip;
 	}
 
 	.top {
@@ -468,6 +478,7 @@
 		max-width: 42rem;
 		margin: 0 auto;
 		width: 100%;
+		min-width: 0;
 		animation: rise 0.45s ease-out;
 	}
 

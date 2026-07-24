@@ -1,4 +1,9 @@
-import { SLOW_KEY_MIN_SAMPLES, type SlowKeyRank } from '$lib/keys';
+import {
+	keyPresetLabel,
+	SLOW_KEY_MIN_SAMPLES,
+	type SlowKeyRank,
+	type StoredKeyPreset
+} from '$lib/keys';
 import type { Language, PracticeMode } from '$lib/words';
 
 const DB_NAME = 'tabtype';
@@ -17,6 +22,11 @@ export type StoredSession = {
 	completedAt: number;
 	language: Language;
 	mode: PracticeMode;
+	/**
+	 * Keys-mode preset used for the session (`'custom'` if the selection
+	 * didn’t match a named preset). Absent on older rows and non-keys modes.
+	 */
+	keyPreset?: StoredKeyPreset;
 	total: number;
 	correct: number;
 	accuracy: number;
@@ -28,6 +38,7 @@ export type StoredSession = {
 export type SessionResultInput = {
 	language: Language;
 	mode: PracticeMode;
+	keyPreset?: StoredKeyPreset;
 	total: number;
 	correct: number;
 	accuracy: number;
@@ -85,6 +96,7 @@ export async function saveSession(result: SessionResultInput): Promise<number> {
 			completedAt: Date.now(),
 			language: result.language,
 			mode: result.mode,
+			...(result.keyPreset != null ? { keyPreset: result.keyPreset } : {}),
 			total: result.total,
 			correct: result.correct,
 			accuracy: result.accuracy,
@@ -96,11 +108,7 @@ export async function saveSession(result: SessionResultInput): Promise<number> {
 		const tx = db.transaction(STORE, 'readwrite');
 		const store = tx.objectStore(STORE);
 		const id = await req(store.add(record));
-		await new Promise<void>((resolve, reject) => {
-			tx.oncomplete = () => resolve();
-			tx.onerror = () => reject(tx.error ?? new Error('IndexedDB transaction failed'));
-			tx.onabort = () => reject(tx.error ?? new Error('IndexedDB transaction aborted'));
-		});
+		await waitForTx(tx);
 
 		return id as number;
 	} finally {
@@ -133,6 +141,44 @@ export async function listSessions(limit = 20): Promise<StoredSession[]> {
 		});
 
 		return results;
+	} finally {
+		db.close();
+	}
+}
+
+async function waitForTx(tx: IDBTransaction): Promise<void> {
+	await new Promise<void>((resolve, reject) => {
+		tx.oncomplete = () => resolve();
+		tx.onerror = () => reject(tx.error ?? new Error('IndexedDB transaction failed'));
+		tx.onabort = () => reject(tx.error ?? new Error('IndexedDB transaction aborted'));
+	});
+}
+
+export async function deleteSession(id: number): Promise<void> {
+	if (!isIndexedDbAvailable()) {
+		throw new Error('IndexedDB unavailable');
+	}
+
+	const db = await openDb();
+	try {
+		const tx = db.transaction(STORE, 'readwrite');
+		await req(tx.objectStore(STORE).delete(id));
+		await waitForTx(tx);
+	} finally {
+		db.close();
+	}
+}
+
+export async function clearSessions(): Promise<void> {
+	if (!isIndexedDbAvailable()) {
+		throw new Error('IndexedDB unavailable');
+	}
+
+	const db = await openDb();
+	try {
+		const tx = db.transaction(STORE, 'readwrite');
+		await req(tx.objectStore(STORE).clear());
+		await waitForTx(tx);
 	} finally {
 		db.close();
 	}
@@ -250,4 +296,12 @@ export function modeLabel(mode: PracticeMode): string {
 		default:
 			return 'Words';
 	}
+}
+
+/** e.g. "Keys · Home row", "Keys · Custom", "Slow keys", "Words". */
+export function sessionModeLabel(session: StoredSession): string {
+	const base = modeLabel(session.mode);
+	if (session.mode !== 'keys') return base;
+	const preset = keyPresetLabel(session.keyPreset);
+	return preset ? `${base} · ${preset}` : base;
 }

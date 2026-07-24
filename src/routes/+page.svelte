@@ -7,9 +7,9 @@
 	import {
 		formatSessionDate,
 		listSessions,
-		modeLabel,
 		rankMissedWords,
 		rankSlowKeys,
+		sessionModeLabel,
 		type StoredSession
 	} from '$lib/history';
 	import { loadPrefs, savePrefs, SESSION_LENGTHS, type SessionLength } from '$lib/prefs';
@@ -103,7 +103,7 @@
 <svelte:window onkeydown={onKeydown} />
 
 <main class="home">
-	<AppNav />
+	<AppNav showBrand={false} />
 
 	<p class="brand">TypeByEar</p>
 	<h1>Hear it. Type it.</h1>
@@ -122,46 +122,45 @@
 	<div class="columns">
 		<div class="primary">
 			<div class="controls">
-				<div class="langs" role="group" aria-label="Language">
-					<button
-						type="button"
-						class={['lang', language === 'en' && 'active']}
-						onclick={() => setLanguage('en')}
-						aria-pressed={language === 'en'}
-					>
-						English
-					</button>
-					<button
-						type="button"
-						class={['lang', language === 'nl' && 'active']}
-						onclick={() => setLanguage('nl')}
-						aria-pressed={language === 'nl'}
-					>
-						Nederlands
-					</button>
-				</div>
-
-				<div class="langs" role="group" aria-label="Session length">
-					{#each SESSION_LENGTHS as length (length)}
+				<div class="control-group">
+					<p class="control-label" id="lang-label">Language</p>
+					<div class="langs" role="group" aria-labelledby="lang-label">
 						<button
 							type="button"
-							class={['lang', sessionLength === length && 'active']}
-							onclick={() => setSessionLength(length)}
-							aria-pressed={sessionLength === length}
+							class={['lang', language === 'en' && 'active']}
+							onclick={() => setLanguage('en')}
+							aria-pressed={language === 'en'}
 						>
-							{length}
+							English
 						</button>
-					{/each}
+						<button
+							type="button"
+							class={['lang', language === 'nl' && 'active']}
+							onclick={() => setLanguage('nl')}
+							aria-pressed={language === 'nl'}
+						>
+							Nederlands
+						</button>
+					</div>
+				</div>
+
+				<div class="control-group">
+					<p class="control-label" id="length-label">Prompts</p>
+					<div class="langs" role="group" aria-labelledby="length-label">
+						{#each SESSION_LENGTHS as length (length)}
+							<button
+								type="button"
+								class={['lang', sessionLength === length && 'active']}
+								onclick={() => setSessionLength(length)}
+								aria-pressed={sessionLength === length}
+							>
+								{length}
+							</button>
+						{/each}
+					</div>
 				</div>
 
 				<button type="button" class="start" onclick={start}>Start session</button>
-				<ShortcutHints
-					items={[
-						{ keys: 'Enter', label: 'start session' },
-						{ keys: 'Esc', label: 'replay · hold to peek while practicing' },
-						{ keys: 'Space', label: 'submit a word' }
-					]}
-				/>
 				<button type="button" class="secondary" onclick={startKeys}>Train keys</button>
 
 				{#if missedCount > 0}
@@ -173,9 +172,15 @@
 					<button type="button" class="secondary" onclick={startSlowKeys}>Train slow keys</button>
 					<p class="drill-hint">{slowKeyCount} keys with slower reactions</p>
 				{/if}
-			</div>
 
-			<p class="hint">{sessionLength} prompts per session</p>
+				<ShortcutHints
+					items={[
+						{ keys: 'Enter', label: 'start session' },
+						{ keys: 'Esc', label: 'replay · hold to peek while practicing' },
+						{ keys: 'Space', label: 'submit a word' }
+					]}
+				/>
+			</div>
 
 			{#if recent.length > 0}
 				<section class="recent" aria-labelledby="recent-title">
@@ -188,7 +193,7 @@
 							<li>
 								<span class="when">{formatSessionDate(row.completedAt)}</span>
 								<span class="meta">
-									{langLabel(row.language)} · {modeLabel(row.mode)} · {row.accuracy}% · {formatTtt(
+									{langLabel(row.language)} · {sessionModeLabel(row)} · {row.accuracy}% · {formatTtt(
 										row.tttMs
 									)}
 								</span>
@@ -201,8 +206,8 @@
 			{/if}
 		</div>
 
-		<section class="why" aria-labelledby="why-title">
-			<h2 id="why-title">Why train this way?</h2>
+		<details class="why" open>
+			<summary>Why train this way?</summary>
 			<p>
 				Most typing apps show you the text and ask you to copy it. That trains your eyes to chase
 				characters on screen — not the skill you use when you’re actually writing.
@@ -238,7 +243,7 @@
 				Short sessions keep the focus on accuracy and recall, with history so you can see whether
 				that skill is actually improving.
 			</p>
-		</section>
+		</details>
 	</div>
 </main>
 
@@ -400,11 +405,19 @@
 		opacity: 0.9;
 	}
 
-	.hint {
-		margin: 1.75rem 0 0;
-		font-size: 0.9rem;
+	.control-label {
+		margin: 0 0 0.4rem;
+		font-size: 0.8rem;
+		font-weight: 600;
+		letter-spacing: 0.02em;
 		color: var(--ink-soft);
-		opacity: 0.85;
+		text-transform: uppercase;
+	}
+
+	.control-group {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
 	}
 
 	.why {
@@ -412,19 +425,28 @@
 		border: none;
 	}
 
-	.why h2 {
-		margin: 0 0 0.85rem;
+	.why summary {
 		font-family: var(--font-display);
 		font-size: 1.1rem;
 		font-weight: 500;
 		color: var(--ink);
+		cursor: pointer;
+		list-style: none;
+	}
+
+	.why summary::-webkit-details-marker {
+		display: none;
+	}
+
+	.why[open] summary {
+		margin-bottom: 0.85rem;
 	}
 
 	.why p {
 		margin: 0 0 0.85rem;
-		font-size: 0.95rem;
+		font-size: 0.9rem;
 		line-height: 1.55;
-		color: var(--ink-soft);
+		color: color-mix(in srgb, var(--ink-soft) 88%, transparent);
 	}
 
 	.why ul {
@@ -435,9 +457,9 @@
 	}
 
 	.why li {
-		font-size: 0.95rem;
+		font-size: 0.9rem;
 		line-height: 1.55;
-		color: var(--ink-soft);
+		color: color-mix(in srgb, var(--ink-soft) 88%, transparent);
 	}
 
 	.why li strong {

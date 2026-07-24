@@ -123,6 +123,34 @@ export const KEY_PRESETS: KeyPreset[] = [
 	{ id: 'all', label: 'All', keys: [...ALL_KEYS] }
 ];
 
+/** Stored on keys sessions: a named preset, or a custom mix. */
+export type StoredKeyPreset = KeyPresetId | 'custom';
+
+/** True when `selected` is the same set as `preset.keys` (order ignored). */
+export function keysMatchPreset(selected: string[], preset: KeyPreset): boolean {
+	const set = new Set(selected.filter((c) => c.length === 1));
+	if (set.size !== preset.keys.length) return false;
+	return preset.keys.every((k) => set.has(k));
+}
+
+/**
+ * Resolve the preset that exactly matches the selection, or `'custom'`.
+ * Prefer more specific presets over `'all'` when sizes would otherwise collide
+ * (they shouldn't — `'all'` is unique by size).
+ */
+export function matchKeyPreset(selected: string[]): StoredKeyPreset {
+	for (const preset of KEY_PRESETS) {
+		if (keysMatchPreset(selected, preset)) return preset.id;
+	}
+	return 'custom';
+}
+
+export function keyPresetLabel(preset: StoredKeyPreset | undefined): string | null {
+	if (preset == null) return null;
+	if (preset === 'custom') return 'Custom';
+	return KEY_PRESETS.find((p) => p.id === preset)?.label ?? preset;
+}
+
 export function pickKeySession(selected: string[], count = SESSION_SIZE): string[] {
 	const unique = [...new Set(selected.filter((c) => c.length === 1))];
 	if (unique.length === 0 || count <= 0) return [];

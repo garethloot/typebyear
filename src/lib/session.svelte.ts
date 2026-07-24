@@ -1,6 +1,10 @@
 import { compareChars, isExactMatch, type CharStatus } from '$lib/compare';
 import { saveSession } from '$lib/history';
-import { isKeysPracticeMode, keySpeechText } from '$lib/keys';
+import {
+	isKeysPracticeMode,
+	keySpeechText,
+	type StoredKeyPreset
+} from '$lib/keys';
 import { cancelSpeech, speak } from '$lib/speech';
 import {
 	pickSessionWords,
@@ -41,6 +45,8 @@ export type StartOptions = {
 	mode?: PracticeMode;
 	/** Custom key selection for keys mode (Practice again). */
 	selectedKeys?: string[];
+	/** Named preset or `'custom'` for keys mode. */
+	keyPreset?: StoredKeyPreset;
 	/** Prompt count for random bank sessions (defaults to SESSION_SIZE). */
 	count?: number;
 };
@@ -66,6 +72,8 @@ class TypingSession {
 	words = $state.raw<string[]>([]);
 	/** Last custom key set for keys mode restart. */
 	selectedKeys = $state.raw<string[]>([]);
+	/** Keys-mode preset (or custom) for history / practice again. */
+	keyPreset = $state<StoredKeyPreset | undefined>(undefined);
 	index = $state(0);
 	input = $state('');
 	phase = $state<SessionPhase>('idle');
@@ -122,6 +130,7 @@ class TypingSession {
 				: mode === 'keys'
 					? [...new Set(words)]
 					: [];
+		this.keyPreset = mode === 'keys' ? options.keyPreset : undefined;
 		this.index = 0;
 		this.input = '';
 		this.phase = 'active';
@@ -235,6 +244,9 @@ class TypingSession {
 			await saveSession({
 				language: this.language,
 				mode: this.mode,
+				...(this.mode === 'keys' && this.keyPreset != null
+					? { keyPreset: this.keyPreset }
+					: {}),
 				total,
 				correct: this.correctCount,
 				accuracy,
@@ -255,6 +267,7 @@ class TypingSession {
 		cancelSpeech();
 		this.words = [];
 		this.selectedKeys = [];
+		this.keyPreset = undefined;
 		this.index = 0;
 		this.input = '';
 		this.phase = 'idle';

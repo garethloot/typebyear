@@ -6,7 +6,7 @@ Audio-first touch typing practice. Words stay hidden — the app speaks one, you
 
 ## Why train this way?
 
-Most typing apps show you the text and ask you to copy it. That trains your eyes to chase characters on screen — not the skill you use when you’re actually writing.
+I used to practice on sites that show a line of text to copy. I felt fast — until I typed my own words. Suddenly I was much slower. That gap is what TypeByEar trains.
 
 Real typing is generative: you think a word (or hear one), then produce it on the keyboard without looking it up letter by letter. TypeByEar practices that loop:
 

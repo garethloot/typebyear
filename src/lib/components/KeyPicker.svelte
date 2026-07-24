@@ -38,16 +38,15 @@
 				{preset.label}
 			</button>
 		{/each}
+		<button
+			type="button"
+			class={['layer', shiftLayer && 'active']}
+			onclick={() => (shiftLayer = !shiftLayer)}
+			aria-pressed={shiftLayer}
+		>
+			{shiftLayer ? 'Showing shifted' : 'Shift layer'}
+		</button>
 	</div>
-
-	<button
-		type="button"
-		class={['layer', shiftLayer && 'active']}
-		onclick={() => (shiftLayer = !shiftLayer)}
-		aria-pressed={shiftLayer}
-	>
-		{shiftLayer ? 'Showing shifted' : 'Shift layer'}
-	</button>
 
 	<div class="keyboard" role="group" aria-label="Character keyboard">
 		{#each KEYBOARD_ROWS as row, rowIndex (rowIndex)}
@@ -85,6 +84,7 @@
 		gap: 0.85rem;
 		width: 100%;
 		max-width: 42rem;
+		min-width: 0;
 	}
 
 	.presets {
@@ -120,16 +120,14 @@
 		color: #f4fbfa;
 	}
 
-	.layer {
-		align-self: flex-start;
-	}
-
 	.keyboard {
 		display: flex;
 		flex-direction: column;
 		gap: 0.3rem;
 		width: 100%;
+		min-width: 0;
 		overflow-x: auto;
+		overscroll-behavior-x: contain;
 		padding-bottom: 0.15rem;
 	}
 
@@ -146,9 +144,9 @@
 		min-width: 1.85rem;
 		height: 1.85rem;
 		padding: 0 0.3rem;
-		border: 1px solid color-mix(in srgb, var(--ink-soft) 28%, transparent);
+		border: 1px solid color-mix(in srgb, var(--ink-soft) 40%, transparent);
 		border-radius: 0.3rem;
-		background: transparent;
+		background: color-mix(in srgb, var(--surface) 85%, white);
 		color: var(--ink);
 		line-height: 1;
 		transition:
@@ -175,6 +173,20 @@
 		justify-content: space-between;
 		gap: 0.75rem;
 		margin-top: 0.15rem;
+	}
+
+	@media (max-width: 520px) {
+		.footer {
+			position: sticky;
+			bottom: 0;
+			padding: 0.65rem 0 0.15rem;
+			background: linear-gradient(
+				to top,
+				color-mix(in srgb, var(--paper) 92%, transparent) 60%,
+				transparent
+			);
+			z-index: 1;
+		}
 	}
 
 	.count {

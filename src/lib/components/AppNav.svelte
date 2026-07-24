@@ -39,6 +39,17 @@
 		>
 			Results
 		</a>
+		<a
+			class="link"
+			href="https://github.com/garethloot/typebyear"
+			target="_blank"
+			rel="noopener noreferrer"
+		>
+			GitHub
+		</a>
+		<a class="link" href="https://x.com/garethloot" target="_blank" rel="noopener noreferrer">
+			X
+		</a>
 	</div>
 </nav>
 

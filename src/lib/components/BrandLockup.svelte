@@ -40,17 +40,18 @@
 	}
 
 	.wordmark {
-		font-family: var(--font-display);
+		font-family: var(--font-brand);
 		font-weight: 700;
-		letter-spacing: -0.03em;
-		line-height: 1;
-		overflow: hidden;
-		text-overflow: ellipsis;
+		letter-spacing: -0.02em;
+		line-height: 1.2;
 		white-space: nowrap;
 	}
 
 	.nav .wordmark {
 		font-size: 1.35rem;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
 	.hero {

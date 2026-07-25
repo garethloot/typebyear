@@ -16,18 +16,23 @@
 	import { loadPrefs, savePrefs, SESSION_LENGTHS, type SessionLength } from '$lib/prefs';
 	import { formatTtt } from '$lib/session.svelte';
 	import { isSpeechAvailable } from '$lib/speech';
-	import type { Language } from '$lib/words';
+	import {
+		isWordListId,
+		WORD_LISTS,
+		wordListLabel,
+		type WordListId
+	} from '$lib/words';
 
-	let language = $state<Language>('en');
+	let wordList = $state<WordListId>('english_1k');
 	let sessionLength = $state<SessionLength>(25);
 	let speechOk = $state(true);
 	let recent = $state.raw<StoredSession[]>([]);
 	let missedCount = $state(0);
 	let slowKeyCount = $state(0);
 
-	async function loadDrillCounts(lang: Language) {
+	async function loadDrillCounts(listId: WordListId) {
 		try {
-			const [missed, slow] = await Promise.all([rankMissedWords(lang), rankSlowKeys(lang)]);
+			const [missed, slow] = await Promise.all([rankMissedWords(listId), rankSlowKeys(listId)]);
 			missedCount = missed.length;
 			slowKeyCount = slow.length;
 		} catch {
@@ -36,10 +41,15 @@
 		}
 	}
 
-	function setLanguage(lang: Language) {
-		language = lang;
-		savePrefs({ language: lang });
-		void loadDrillCounts(lang);
+	function setWordList(listId: WordListId) {
+		wordList = listId;
+		savePrefs({ wordList: listId });
+		void loadDrillCounts(listId);
+	}
+
+	function onWordListChange(event: Event) {
+		const value = (event.currentTarget as HTMLSelectElement).value;
+		if (isWordListId(value)) setWordList(value);
 	}
 
 	function setSessionLength(length: SessionLength) {
@@ -50,7 +60,7 @@
 	onMount(() => {
 		speechOk = isSpeechAvailable();
 		const prefs = loadPrefs();
-		language = prefs.language;
+		wordList = prefs.wordList;
 		sessionLength = prefs.sessionLength;
 		void listSessions(8)
 			.then((rows) => {
@@ -59,29 +69,23 @@
 			.catch(() => {
 				recent = [];
 			});
-		void loadDrillCounts(language);
+		void loadDrillCounts(wordList);
 	});
 
 	function start() {
-		goto(resolve(`/practice?lang=${language}`));
+		goto(resolve(`/practice?list=${wordList}`));
 	}
 
 	function startKeys() {
-		goto(resolve(`/practice?lang=${language}&mode=keys`));
+		goto(resolve(`/practice?list=${wordList}&mode=keys`));
 	}
 
 	function startMissed() {
-		goto(resolve(`/practice?lang=${language}&mode=missed`));
+		goto(resolve(`/practice?list=${wordList}&mode=missed`));
 	}
 
 	function startSlowKeys() {
-		goto(resolve(`/practice?lang=${language}&mode=slow-keys`));
-	}
-
-	function langLabel(lang: Language): string {
-		if (lang === 'nl') return 'NL';
-		if (lang === 'ts') return 'TS';
-		return 'EN';
+		goto(resolve(`/practice?list=${wordList}&mode=slow-keys`));
 	}
 
 	function isTypingTarget(target: EventTarget | null): boolean {
@@ -126,33 +130,17 @@
 		<div class="primary">
 			<div class="controls">
 				<div class="control-group">
-					<p class="control-label" id="lang-label">Language</p>
-					<div class="langs" role="group" aria-labelledby="lang-label">
-						<button
-							type="button"
-							class={['lang', language === 'en' && 'active']}
-							onclick={() => setLanguage('en')}
-							aria-pressed={language === 'en'}
-						>
-							English
-						</button>
-						<button
-							type="button"
-							class={['lang', language === 'nl' && 'active']}
-							onclick={() => setLanguage('nl')}
-							aria-pressed={language === 'nl'}
-						>
-							Nederlands
-						</button>
-						<button
-							type="button"
-							class={['lang', language === 'ts' && 'active']}
-							onclick={() => setLanguage('ts')}
-							aria-pressed={language === 'ts'}
-						>
-							TypeScript
-						</button>
-					</div>
+					<label class="control-label" for="word-list">Word list</label>
+					<select
+						id="word-list"
+						class="word-list"
+						value={wordList}
+						onchange={onWordListChange}
+					>
+						{#each WORD_LISTS as list (list.id)}
+							<option value={list.id}>{list.name}</option>
+						{/each}
+					</select>
 				</div>
 
 				<div class="control-group">
@@ -204,7 +192,7 @@
 							<li>
 								<span class="when">{formatSessionDate(row.completedAt)}</span>
 								<span class="meta">
-									{langLabel(row.language)} · {sessionModeLabel(row)} · {row.accuracy}% · {formatTtt(
+									{wordListLabel(row.wordList)} · {sessionModeLabel(row)} · {row.accuracy}% · {formatTtt(
 										row.tttMs
 									)}
 								</span>
@@ -357,6 +345,27 @@
 		background: var(--teal);
 		border-color: var(--teal);
 		color: #f4fbfa;
+	}
+
+	.word-list {
+		appearance: none;
+		border: 1px solid color-mix(in srgb, var(--teal) 35%, transparent);
+		background:
+			linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%) calc(100% - 1.1rem) calc(50% - 0.15rem) /
+				0.4rem 0.4rem no-repeat,
+			linear-gradient(135deg, var(--ink-soft) 50%, transparent 50%) calc(100% - 0.75rem) calc(50% - 0.15rem) /
+				0.4rem 0.4rem no-repeat,
+			transparent;
+		color: var(--ink);
+		padding: 0.55rem 2.25rem 0.55rem 0.85rem;
+		border-radius: 0.35rem;
+		font: inherit;
+		min-width: 12rem;
+	}
+
+	.word-list:focus-visible {
+		outline: 2px solid var(--teal);
+		outline-offset: 2px;
 	}
 
 	.start {

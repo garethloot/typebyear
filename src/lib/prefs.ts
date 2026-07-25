@@ -1,18 +1,23 @@
-import { isLanguage, SESSION_SIZE, type Language } from '$lib/words';
+import {
+	isWordListId,
+	migrateWordListId,
+	SESSION_SIZE,
+	type WordListId
+} from '$lib/words';
 
 export type SessionLength = 10 | 25 | 50;
 
 export const SESSION_LENGTHS: readonly SessionLength[] = [10, 25, 50];
 
 export type Prefs = {
-	language: Language;
+	wordList: WordListId;
 	sessionLength: SessionLength;
 };
 
 const PREFS_STORAGE_KEY = 'typebyear:prefs';
 
 const DEFAULT_PREFS: Prefs = {
-	language: 'en',
+	wordList: 'english_1k',
 	sessionLength: SESSION_SIZE as SessionLength
 };
 
@@ -24,12 +29,16 @@ function normalizePrefs(raw: unknown): Prefs {
 	if (!raw || typeof raw !== 'object') return { ...DEFAULT_PREFS };
 
 	const obj = raw as Record<string, unknown>;
-	const language = typeof obj.language === 'string' && isLanguage(obj.language) ? obj.language : DEFAULT_PREFS.language;
+	const fromWordList =
+		typeof obj.wordList === 'string' && isWordListId(obj.wordList) ? obj.wordList : null;
+	const fromLegacy =
+		typeof obj.language === 'string' ? migrateWordListId(obj.language) : null;
+	const wordList = fromWordList ?? fromLegacy ?? DEFAULT_PREFS.wordList;
 	const sessionLength = isSessionLength(obj.sessionLength)
 		? obj.sessionLength
 		: DEFAULT_PREFS.sessionLength;
 
-	return { language, sessionLength };
+	return { wordList, sessionLength };
 }
 
 export function loadPrefs(): Prefs {

@@ -1,9 +1,8 @@
-import type { Language } from '$lib/words';
+import type { SpeechLanguage } from '$lib/words';
 
-const LANG_TAG: Record<Language, string> = {
+const LANG_TAG: Record<SpeechLanguage, string> = {
 	en: 'en-US',
-	nl: 'nl-NL',
-	ts: 'en-US'
+	nl: 'nl-NL'
 };
 
 const VOICE_BOOST: Array<{ match: RegExp; score: number }> = [
@@ -25,7 +24,7 @@ export function isSpeechAvailable(): boolean {
 	return typeof window !== 'undefined' && 'speechSynthesis' in window;
 }
 
-function scoreVoice(voice: SpeechSynthesisVoice, lang: Language): number {
+function scoreVoice(voice: SpeechSynthesisVoice, lang: SpeechLanguage): number {
 	const tag = LANG_TAG[lang];
 	let score = 0;
 
@@ -46,7 +45,7 @@ function scoreVoice(voice: SpeechSynthesisVoice, lang: Language): number {
 	return score;
 }
 
-function pickVoice(lang: Language): SpeechSynthesisVoice | undefined {
+function pickVoice(lang: SpeechLanguage): SpeechSynthesisVoice | undefined {
 	const voices = window.speechSynthesis.getVoices();
 	let best: SpeechSynthesisVoice | undefined;
 	let bestScore = -1;
@@ -92,7 +91,7 @@ function whenIdle(then: () => void, generation: number, attempts = 0) {
  * Speak a practice word once, at a natural pace.
  * `onComplete` fires when speech ends (or immediately if unavailable).
  */
-export function speak(text: string, lang: Language, onComplete?: () => void): void {
+export function speak(text: string, lang: SpeechLanguage, onComplete?: () => void): void {
 	if (!isSpeechAvailable()) {
 		onComplete?.();
 		return;

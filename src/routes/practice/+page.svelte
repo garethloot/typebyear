@@ -20,11 +20,12 @@
 	import { formatTtt, session } from '$lib/session.svelte';
 	import { isSpeechAvailable } from '$lib/speech';
 	import {
-		isLanguage,
 		isPracticeMode,
+		isWordListId,
+		migrateWordListId,
 		pickMissedSessionWords,
-		type Language,
-		type PracticeMode
+		type PracticeMode,
+		type WordListId
 	} from '$lib/words';
 
 	const PEEK_HOLD_MS = 400;
@@ -32,7 +33,7 @@
 	let speechOk = $state(true);
 	let stageEl: HTMLElement | undefined;
 	let setupMode = $state(false);
-	let setupLang = $state<Language>('en');
+	let setupList = $state<WordListId>('english_1k');
 	let selectedKeys = $state<string[]>([]);
 	let peekVisible = $state(false);
 	let peekTimer: ReturnType<typeof setTimeout> | null = null;
@@ -145,25 +146,25 @@
 		stageEl?.focus({ preventScroll: true });
 	}
 
-	async function startMissedSession(lang: Language) {
-		const ranked = await rankMissedWords(lang);
+	async function startMissedSession(listId: WordListId) {
+		const ranked = await rankMissedWords(listId);
 		const words = pickMissedSessionWords(ranked, sessionCount());
 		if (words.length === 0) {
 			goto(resolve('/'));
 			return false;
 		}
-		session.start(lang, { words, mode: 'missed' });
+		session.start(listId, { words, mode: 'missed' });
 		return true;
 	}
 
-	async function startSlowKeysSession(lang: Language) {
-		const ranked = await rankSlowKeys(lang);
+	async function startSlowKeysSession(listId: WordListId) {
+		const ranked = await rankSlowKeys(listId);
 		const keys = pickSlowKeySession(ranked, sessionCount());
 		if (keys.length === 0) {
 			goto(resolve('/'));
 			return false;
 		}
-		session.start(lang, { words: keys, mode: 'slow-keys' });
+		session.start(listId, { words: keys, mode: 'slow-keys' });
 		return true;
 	}
 
@@ -172,13 +173,19 @@
 		if (keys.length === 0) return;
 		setupMode = false;
 		const keyPreset = matchKeyPreset(selectedKeys);
-		session.start(setupLang, {
+		session.start(setupList, {
 			words: keys,
 			mode: 'keys',
 			selectedKeys,
 			keyPreset
 		});
 		void focusStage();
+	}
+
+	function resolveListParam(): WordListId | null {
+		const listParam = page.url.searchParams.get('list');
+		if (isWordListId(listParam)) return listParam;
+		return migrateWordListId(page.url.searchParams.get('lang'));
 	}
 
 	onMount(() => {
@@ -189,8 +196,8 @@
 		document.addEventListener('keyup', onKeyup, true);
 
 		void (async () => {
-			const langParam = page.url.searchParams.get('lang');
-			if (!isLanguage(langParam)) {
+			const listId = resolveListParam();
+			if (!listId) {
 				goto(resolve('/'));
 				return;
 			}
@@ -200,20 +207,20 @@
 
 			if (mode === 'keys') {
 				session.reset();
-				setupLang = langParam;
+				setupList = listId;
 				selectedKeys = loadSavedKeySelection() ?? [];
 				setupMode = true;
 				return;
 			}
 
 			if (mode === 'slow-keys') {
-				const started = await startSlowKeysSession(langParam);
+				const started = await startSlowKeysSession(listId);
 				if (cancelled || !started) return;
 			} else if (mode === 'missed') {
-				const started = await startMissedSession(langParam);
+				const started = await startMissedSession(listId);
 				if (cancelled || !started) return;
 			} else {
-				session.start(langParam, { count: sessionCount() });
+				session.start(listId, { count: sessionCount() });
 			}
 
 			if (!cancelled) void focusStage();
@@ -230,24 +237,24 @@
 	async function again() {
 		clearPeek();
 		if (session.mode === 'missed') {
-			const started = await startMissedSession(session.language);
+			const started = await startMissedSession(session.wordList);
 			if (!started) return;
 		} else if (session.mode === 'slow-keys') {
-			const started = await startSlowKeysSession(session.language);
+			const started = await startSlowKeysSession(session.wordList);
 			if (!started) return;
 		} else if (session.mode === 'keys') {
 			const pool =
 				session.selectedKeys.length > 0 ? session.selectedKeys : [...new Set(session.words)];
 			const keys = pickKeySession(pool, sessionCount());
 			if (keys.length === 0) return;
-			session.start(session.language, {
+			session.start(session.wordList, {
 				words: keys,
 				mode: 'keys',
 				selectedKeys: pool,
 				keyPreset: session.keyPreset ?? matchKeyPreset(pool)
 			});
 		} else {
-			session.start(session.language, { count: sessionCount() });
+			session.start(session.wordList, { count: sessionCount() });
 		}
 		void focusStage();
 	}

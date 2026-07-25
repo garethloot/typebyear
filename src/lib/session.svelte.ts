@@ -9,8 +9,9 @@ import { cancelSpeech, speak } from '$lib/speech';
 import {
 	pickSessionWords,
 	SESSION_SIZE,
-	type Language,
-	type PracticeMode
+	speechLangFor,
+	type PracticeMode,
+	type WordListId
 } from '$lib/words';
 
 export type SessionPhase = 'idle' | 'active' | 'done';
@@ -35,7 +36,7 @@ export type SessionSummary = {
 	tttMs: number;
 	/** Median characters-per-minute over the TTT window */
 	cpm: number;
-	language: Language;
+	wordList: WordListId;
 	mode: PracticeMode;
 };
 
@@ -67,7 +68,7 @@ export function formatTtt(ms: number): string {
 }
 
 class TypingSession {
-	language = $state<Language>('en');
+	wordList = $state<WordListId>('english_1k');
 	mode = $state<PracticeMode>('random');
 	words = $state.raw<string[]>([]);
 	/** Last custom key set for keys mode restart. */
@@ -96,6 +97,7 @@ class TypingSession {
 	charStatuses = $derived<CharStatus[]>(compareChars(this.input, this.target));
 	isDone = $derived(this.phase === 'done');
 	isKeysMode = $derived(isKeysPracticeMode(this.mode));
+	speechLang = $derived(speechLangFor(this.wordList));
 
 	summary = $derived.by((): SessionSummary | null => {
 		if (this.phase !== 'done') return null;
@@ -107,21 +109,21 @@ class TypingSession {
 			accuracy,
 			tttMs: median(this.wordTimings.map((w) => w.tttMs)),
 			cpm: median(this.wordTimings.map((w) => w.cpm)),
-			language: this.language,
+			wordList: this.wordList,
 			mode: this.mode
 		};
 	});
 
-	start(lang: Language, options: StartOptions = {}) {
+	start(listId: WordListId, options: StartOptions = {}) {
 		const mode = options.mode ?? (options.words ? 'missed' : 'random');
 		const count = options.count ?? SESSION_SIZE;
 		const words =
 			options.words && options.words.length > 0
 				? options.words
-				: pickSessionWords(lang, count);
+				: pickSessionWords(listId, count);
 
 		cancelSpeech();
-		this.language = lang;
+		this.wordList = listId;
 		this.mode = mode;
 		this.words = words;
 		this.selectedKeys =
@@ -148,11 +150,12 @@ class TypingSession {
 		this.typingStartedAt = null;
 
 		const wordIndex = this.index;
+		const lang = this.speechLang;
 		const text = isKeysPracticeMode(this.mode)
-			? keySpeechText(this.target, this.language)
+			? keySpeechText(this.target, lang)
 			: this.target;
 
-		speak(text, this.language, () => {
+		speak(text, lang, () => {
 			if (this.phase !== 'active') return;
 			if (this.index !== wordIndex) return;
 			this.typingStartedAt = Date.now();
@@ -242,7 +245,7 @@ class TypingSession {
 
 		try {
 			await saveSession({
-				language: this.language,
+				wordList: this.wordList,
 				mode: this.mode,
 				...(this.mode === 'keys' && this.keyPreset != null
 					? { keyPreset: this.keyPreset }

@@ -16,7 +16,7 @@
 	} from '$lib/history';
 	import { KEY_PRESETS, keyPresetLabel, type StoredKeyPreset } from '$lib/keys';
 	import { formatTtt } from '$lib/session.svelte';
-	import type { Language } from '$lib/words';
+	import { wordListLabel, type WordListId } from '$lib/words';
 
 	type Metric = 'accuracy' | 'cpm' | 'ttt';
 	type ChartPoint = { x: number; y: number; value: number; label: string };
@@ -28,7 +28,7 @@
 	let keyMetric = $state<Exclude<Metric, 'cpm'>>('ttt');
 	let keyPresetFilter = $state<KeyPresetFilter>('all');
 	let openId = $state<number | null>(null);
-	let slowKeyLangs = $state.raw<Language[]>([]);
+	let slowKeyLists = $state.raw<WordListId[]>([]);
 
 	const wordSessions = $derived(sessions.filter((s) => !isKeysSession(s)));
 	const keySessions = $derived(sessions.filter((s) => isKeysSession(s)));
@@ -78,7 +78,7 @@
 		void listSessions(100)
 			.then(async (rows) => {
 				sessions = rows;
-				await refreshSlowKeyLangs(rows);
+				await refreshSlowKeyLists(rows);
 			})
 			.catch(() => {
 				sessions = [];
@@ -88,14 +88,14 @@
 			});
 	});
 
-	async function refreshSlowKeyLangs(rows: StoredSession[]) {
-		const langs = [...new Set(rows.map((r) => r.language))];
-		const available: Language[] = [];
-		for (const lang of langs) {
-			const ranked = await rankSlowKeys(lang);
-			if (ranked.length > 0) available.push(lang);
+	async function refreshSlowKeyLists(rows: StoredSession[]) {
+		const lists = [...new Set(rows.map((r) => r.wordList))];
+		const available: WordListId[] = [];
+		for (const listId of lists) {
+			const ranked = await rankSlowKeys(listId);
+			if (ranked.length > 0) available.push(listId);
 		}
-		slowKeyLangs = available;
+		slowKeyLists = available;
 	}
 
 	function syncKeyPresetFilter(rows: StoredSession[]) {
@@ -119,7 +119,7 @@
 		sessions = next;
 		if (openId === id) openId = null;
 		syncKeyPresetFilter(next);
-		await refreshSlowKeyLangs(next);
+		await refreshSlowKeyLists(next);
 	}
 
 	async function clearAll() {
@@ -132,7 +132,7 @@
 		sessions = [];
 		openId = null;
 		keyPresetFilter = 'all';
-		slowKeyLangs = [];
+		slowKeyLists = [];
 	}
 
 	function chartPointsFor(rows: StoredSession[], metric: Metric): ChartPoint[] {
@@ -164,12 +164,6 @@
 		if (filter === 'all') return 'All';
 		if (filter === 'slow-keys') return 'Slow keys';
 		return keyPresetLabel(filter) ?? filter;
-	}
-
-	function langLabel(lang: Language): string {
-		if (lang === 'nl') return 'NL';
-		if (lang === 'ts') return 'TS';
-		return 'EN';
 	}
 
 	function toggle(id: number | undefined) {
@@ -216,12 +210,12 @@
 			</div>
 		</dl>
 
-		{#if slowKeyLangs.length > 0}
+		{#if slowKeyLists.length > 0}
 			<p class="slow-link">
-				{#each slowKeyLangs as lang, i (lang)}
+				{#each slowKeyLists as listId, i (listId)}
 					{#if i > 0}<span aria-hidden="true"> · </span>{/if}
-					<a href={resolve(`/practice?lang=${lang}&mode=slow-keys`)}
-						>Train slow keys ({langLabel(lang)})</a
+					<a href={resolve(`/practice?list=${listId}&mode=slow-keys`)}
+						>Train slow keys ({wordListLabel(listId)})</a
 					>
 				{/each}
 			</p>
@@ -240,7 +234,7 @@
 							>
 								<span class="when">{formatSessionDate(row.completedAt)}</span>
 								<span class="meta">
-									{langLabel(row.language)} · {sessionModeLabel(row)} · {row.accuracy}% · {formatTtt(
+									{wordListLabel(row.wordList)} · {sessionModeLabel(row)} · {row.accuracy}% · {formatTtt(
 										row.tttMs
 									)}
 								</span>
@@ -277,18 +271,18 @@
 							</p>
 							{#if missedWordsFromSession(row).length > 0}
 								<p class="practice-link">
-									<a href={resolve(`/practice?lang=${row.language}&mode=missed`)}
+									<a href={resolve(`/practice?list=${row.wordList}&mode=missed`)}
 										>Practice misspellings</a
 									>
 								</p>
 							{/if}
 							{#if isKeysSession(row)}
 								<p class="practice-link">
-									<a href={resolve(`/practice?lang=${row.language}&mode=slow-keys`)}
+									<a href={resolve(`/practice?list=${row.wordList}&mode=slow-keys`)}
 										>Practice slow keys</a
 									>
 									·
-									<a href={resolve(`/practice?lang=${row.language}&mode=keys`)}>Choose keys</a>
+									<a href={resolve(`/practice?list=${row.wordList}&mode=keys`)}>Choose keys</a>
 								</p>
 							{/if}
 						{/if}

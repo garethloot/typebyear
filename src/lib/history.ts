@@ -4,7 +4,7 @@ import {
 	type SlowKeyRank,
 	type StoredKeyPreset
 } from '$lib/keys';
-import type { Language, PracticeMode } from '$lib/words';
+import { migrateWordListId, type PracticeMode, type WordListId } from '$lib/words';
 
 const DB_NAME = 'tabtype';
 const DB_VERSION = 2;
@@ -20,7 +20,7 @@ export type StoredWord = {
 export type StoredSession = {
 	id?: number;
 	completedAt: number;
-	language: Language;
+	wordList: WordListId;
 	mode: PracticeMode;
 	/**
 	 * Keys-mode preset used for the session (`'custom'` if the selection
@@ -36,7 +36,7 @@ export type StoredSession = {
 };
 
 export type SessionResultInput = {
-	language: Language;
+	wordList: WordListId;
 	mode: PracticeMode;
 	keyPreset?: StoredKeyPreset;
 	total: number;
@@ -74,10 +74,27 @@ function req<T>(request: IDBRequest<T>): Promise<T> {
 	});
 }
 
-function normalizeSession(raw: StoredSession): StoredSession {
+type RawStoredSession = Omit<StoredSession, 'wordList'> & {
+	wordList?: string;
+	/** Legacy field from before word-list ids. */
+	language?: string;
+};
+
+function normalizeSession(raw: RawStoredSession): StoredSession {
+	const wordList =
+		migrateWordListId(raw.wordList) ?? migrateWordListId(raw.language) ?? 'english_1k';
 	return {
-		...raw,
-		mode: raw.mode ?? 'random'
+		id: raw.id,
+		completedAt: raw.completedAt,
+		wordList,
+		mode: raw.mode ?? 'random',
+		...(raw.keyPreset != null ? { keyPreset: raw.keyPreset } : {}),
+		total: raw.total,
+		correct: raw.correct,
+		accuracy: raw.accuracy,
+		tttMs: raw.tttMs,
+		cpm: raw.cpm,
+		words: raw.words
 	};
 }
 
@@ -94,7 +111,7 @@ export async function saveSession(result: SessionResultInput): Promise<number> {
 	try {
 		const record: StoredSession = {
 			completedAt: Date.now(),
-			language: result.language,
+			wordList: result.wordList,
 			mode: result.mode,
 			...(result.keyPreset != null ? { keyPreset: result.keyPreset } : {}),
 			total: result.total,
@@ -135,7 +152,7 @@ export async function listSessions(limit = 20): Promise<StoredSession[]> {
 					resolve();
 					return;
 				}
-				results.push(normalizeSession(cursor.value as StoredSession));
+				results.push(normalizeSession(cursor.value as RawStoredSession));
 				cursor.continue();
 			};
 		});
@@ -199,18 +216,18 @@ export type MissedWordRank = {
 };
 
 /**
- * Rank target words that were marked incorrect, for one language.
+ * Rank target words that were marked incorrect, for one word list.
  * Higher miss count first; ties broken alphabetically.
  */
 export async function rankMissedWords(
-	language: Language,
+	wordList: WordListId,
 	sessionLimit = 200
 ): Promise<MissedWordRank[]> {
 	const sessions = await listSessions(sessionLimit);
 	const counts = new Map<string, number>();
 
 	for (const session of sessions) {
-		if (session.language !== language) continue;
+		if (session.wordList !== wordList) continue;
 		if (session.mode === 'keys' || session.mode === 'slow-keys') continue;
 		for (const item of session.words) {
 			if (item.correct) continue;
@@ -249,14 +266,14 @@ function median(values: number[]): number {
  * Only includes keys with at least SLOW_KEY_MIN_SAMPLES correct timed hits.
  */
 export async function rankSlowKeys(
-	language: Language,
+	wordList: WordListId,
 	sessionLimit = 200
 ): Promise<SlowKeyRank[]> {
 	const sessions = await listSessions(sessionLimit);
 	const samples = new Map<string, number[]>();
 
 	for (const session of sessions) {
-		if (session.language !== language) continue;
+		if (session.wordList !== wordList) continue;
 		if (session.mode !== 'keys' && session.mode !== 'slow-keys') continue;
 		for (const item of session.words) {
 			if (!item.correct) continue;

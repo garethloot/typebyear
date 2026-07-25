@@ -1,4 +1,4 @@
-import { SESSION_SIZE, shuffle, type Language } from '$lib/words';
+import { SESSION_SIZE, shuffle, type SpeechLanguage } from '$lib/words';
 
 /** Minimum correct hits before a key ranks as "slow". */
 export const SLOW_KEY_MIN_SAMPLES = 3;
@@ -277,7 +277,7 @@ const SYMBOL_NAMES_NL: Record<string, string> = {
 };
 
 /** Readable TTS label for a single practice key. */
-export function keySpeechText(char: string, lang: Language): string {
+export function keySpeechText(char: string, lang: SpeechLanguage): string {
 	if (char.length !== 1) return char;
 
 	if (/[a-z]/.test(char)) {

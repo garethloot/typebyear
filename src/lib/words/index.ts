@@ -69,6 +69,15 @@ export function speechLangFor(id: WordListId): SpeechLanguage {
 	return WORD_LIST_BY_ID[id].speechLang;
 }
 
+/** Canonical list id for a speech language, keeping `preferred` when it already matches. */
+export function listIdForSpeechLang(
+	lang: SpeechLanguage,
+	preferred?: WordListId
+): WordListId {
+	if (preferred && speechLangFor(preferred) === lang) return preferred;
+	return lang === 'nl' ? 'dutch_1k' : 'english_1k';
+}
+
 export function shuffle<T>(items: T[]): T[] {
 	const arr = [...items];
 	for (let i = arr.length - 1; i > 0; i--) {

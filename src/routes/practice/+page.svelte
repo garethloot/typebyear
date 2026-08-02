@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
+	import { goto, replaceState } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { onMount, tick } from 'svelte';
@@ -16,15 +16,18 @@
 		pickKeySession,
 		pickSlowKeySession
 	} from '$lib/keys';
-	import { loadPrefs } from '$lib/prefs';
+	import { loadPrefs, savePrefs } from '$lib/prefs';
 	import { formatTtt, session } from '$lib/session.svelte';
 	import { isSpeechAvailable } from '$lib/speech';
 	import {
 		isPracticeMode,
 		isWordListId,
+		listIdForSpeechLang,
 		migrateWordListId,
 		pickMissedSessionWords,
+		speechLangFor,
 		type PracticeMode,
+		type SpeechLanguage,
 		type WordListId
 	} from '$lib/words';
 
@@ -37,6 +40,8 @@
 	let selectedKeys = $state<string[]>([]);
 	let peekVisible = $state(false);
 	let peekTimer: ReturnType<typeof setTimeout> | null = null;
+
+	const setupSpeechLang = $derived(speechLangFor(setupList));
 
 	const stageRef: Attachment<HTMLElement> = (element) => {
 		stageEl = element;
@@ -182,6 +187,16 @@
 		void focusStage();
 	}
 
+	function setSetupLanguage(lang: SpeechLanguage) {
+		const next = listIdForSpeechLang(lang, setupList);
+		if (next === setupList) return;
+		setupList = next;
+		savePrefs({ wordList: setupList });
+		const url = new URL(page.url);
+		url.searchParams.set('list', setupList);
+		replaceState(url, {});
+	}
+
 	function resolveListParam(): WordListId | null {
 		const listParam = page.url.searchParams.get('list');
 		if (isWordListId(listParam)) return listParam;
@@ -302,6 +317,27 @@
 		<section class="setup" aria-labelledby="setup-title">
 			<h1 id="setup-title">Choose keys</h1>
 			<p class="setup-lede">Select the characters to train, then start. Hear a key, type it.</p>
+			<div class="control-group">
+				<p class="control-label" id="setup-lang-label">Language</p>
+				<div class="langs" role="group" aria-labelledby="setup-lang-label">
+					<button
+						type="button"
+						class={['lang', setupSpeechLang === 'en' && 'active']}
+						onclick={() => setSetupLanguage('en')}
+						aria-pressed={setupSpeechLang === 'en'}
+					>
+						English
+					</button>
+					<button
+						type="button"
+						class={['lang', setupSpeechLang === 'nl' && 'active']}
+						onclick={() => setSetupLanguage('nl')}
+						aria-pressed={setupSpeechLang === 'nl'}
+					>
+						Dutch
+					</button>
+				</div>
+			</div>
 			<KeyPicker bind:selected={selectedKeys} onStart={startKeysFromSelection} />
 		</section>
 	{:else if session.phase === 'done' && session.summary}
@@ -495,6 +531,48 @@
 		color: var(--ink-soft);
 		font-size: 1rem;
 		line-height: 1.5;
+	}
+
+	.control-group {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0;
+		margin-bottom: 0.25rem;
+	}
+
+	.control-label {
+		margin: 0 0 0.4rem;
+		font-size: 0.8rem;
+		font-weight: 600;
+		letter-spacing: 0.02em;
+		color: var(--ink-soft);
+		text-transform: uppercase;
+	}
+
+	.langs {
+		display: flex;
+		gap: 0.5rem;
+	}
+
+	.lang {
+		border: 1px solid color-mix(in srgb, var(--teal) 35%, transparent);
+		background: transparent;
+		color: var(--ink-soft);
+		padding: 0.55rem 1rem;
+		border-radius: 0.35rem;
+		font: inherit;
+		cursor: pointer;
+		transition:
+			background 0.2s ease,
+			color 0.2s ease,
+			border-color 0.2s ease;
+	}
+
+	.lang.active {
+		background: var(--teal);
+		border-color: var(--teal);
+		color: #f4fbfa;
 	}
 
 	.stage {

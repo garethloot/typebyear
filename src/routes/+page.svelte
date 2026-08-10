@@ -17,20 +17,22 @@
 	import { formatTtt } from '$lib/session.svelte';
 	import { isSpeechAvailable } from '$lib/speech';
 	import {
-		isWordListId,
+		isPracticeListId,
+		listCustomListOptions,
 		WORD_LISTS,
 		wordListLabel,
-		type WordListId
+		type PracticeListId
 	} from '$lib/words';
 
-	let wordList = $state<WordListId>('english_1k');
+	let wordList = $state<PracticeListId>('english_1k');
 	let sessionLength = $state<SessionLength>(25);
 	let speechOk = $state(true);
 	let recent = $state.raw<StoredSession[]>([]);
 	let missedCount = $state(0);
 	let slowKeyCount = $state(0);
+	let customLists = $state.raw<Array<{ id: string; name: string }>>([]);
 
-	async function loadDrillCounts(listId: WordListId) {
+	async function loadDrillCounts(listId: PracticeListId) {
 		try {
 			const [missed, slow] = await Promise.all([rankMissedWords(listId), rankSlowKeys(listId)]);
 			missedCount = missed.length;
@@ -41,7 +43,7 @@
 		}
 	}
 
-	function setWordList(listId: WordListId) {
+	function setWordList(listId: PracticeListId) {
 		wordList = listId;
 		savePrefs({ wordList: listId });
 		void loadDrillCounts(listId);
@@ -49,7 +51,7 @@
 
 	function onWordListChange(event: Event) {
 		const value = (event.currentTarget as HTMLSelectElement).value;
-		if (isWordListId(value)) setWordList(value);
+		if (isPracticeListId(value)) setWordList(value);
 	}
 
 	function setSessionLength(length: SessionLength) {
@@ -59,6 +61,7 @@
 
 	onMount(() => {
 		speechOk = isSpeechAvailable();
+		customLists = listCustomListOptions();
 		const prefs = loadPrefs();
 		wordList = prefs.wordList;
 		sessionLength = prefs.sessionLength;
@@ -140,7 +143,15 @@
 						{#each WORD_LISTS as list (list.id)}
 							<option value={list.id}>{list.name}</option>
 						{/each}
+						{#if customLists.length > 0}
+							<optgroup label="Custom">
+								{#each customLists as list (list.id)}
+									<option value={list.id}>{list.name}</option>
+								{/each}
+							</optgroup>
+						{/if}
 					</select>
+					<a class="manage-lists" href={resolve('/lists')}>Manage lists</a>
 				</div>
 
 				<div class="control-group">
@@ -427,6 +438,12 @@
 		display: flex;
 		flex-direction: column;
 		align-items: flex-start;
+	}
+
+	.manage-lists {
+		margin-top: 0.45rem;
+		font-size: 0.85rem;
+		color: var(--teal-deep);
 	}
 
 	.why {

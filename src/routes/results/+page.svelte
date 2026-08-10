@@ -1,6 +1,13 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
+	import type { Attachment } from 'svelte/attachments';
+	import {
+		applyBackup,
+		BackupError,
+		downloadBackup,
+		parseBackupFile
+	} from '$lib/backup';
 	import AppNav from '$lib/components/AppNav.svelte';
 	import ProgressChart from '$lib/components/ProgressChart.svelte';
 	import {
@@ -16,7 +23,7 @@
 	} from '$lib/history';
 	import { KEY_PRESETS, keyPresetLabel, type StoredKeyPreset } from '$lib/keys';
 	import { formatTtt } from '$lib/session.svelte';
-	import { wordListLabel, type WordListId } from '$lib/words';
+	import { wordListLabel, type PracticeListId } from '$lib/words';
 
 	type Metric = 'accuracy' | 'cpm' | 'ttt';
 	type ChartPoint = { x: number; y: number; value: number; label: string };
@@ -28,7 +35,18 @@
 	let keyMetric = $state<Exclude<Metric, 'cpm'>>('ttt');
 	let keyPresetFilter = $state<KeyPresetFilter>('all');
 	let openId = $state<number | null>(null);
-	let slowKeyLists = $state.raw<WordListId[]>([]);
+	let slowKeyLists = $state.raw<PracticeListId[]>([]);
+	let fileInput: HTMLInputElement | undefined;
+	let backupBusy = $state(false);
+	let backupMessage = $state<string | null>(null);
+	let backupError = $state<string | null>(null);
+
+	const fileInputRef: Attachment<HTMLInputElement> = (element) => {
+		fileInput = element;
+		return () => {
+			if (fileInput === element) fileInput = undefined;
+		};
+	};
 
 	const wordSessions = $derived(sessions.filter((s) => !isKeysSession(s)));
 	const keySessions = $derived(sessions.filter((s) => isKeysSession(s)));
@@ -90,7 +108,7 @@
 
 	async function refreshSlowKeyLists(rows: StoredSession[]) {
 		const lists = [...new Set(rows.map((r) => r.wordList))];
-		const available: WordListId[] = [];
+		const available: PracticeListId[] = [];
 		for (const listId of lists) {
 			const ranked = await rankSlowKeys(listId);
 			if (ranked.length > 0) available.push(listId);
@@ -133,6 +151,76 @@
 		openId = null;
 		keyPresetFilter = 'all';
 		slowKeyLists = [];
+	}
+
+	async function reloadSessions() {
+		loading = true;
+		backupMessage = null;
+		backupError = null;
+		try {
+			const rows = await listSessions(100);
+			sessions = rows;
+			openId = null;
+			keyPresetFilter = 'all';
+			await refreshSlowKeyLists(rows);
+		} catch {
+			sessions = [];
+			slowKeyLists = [];
+		} finally {
+			loading = false;
+		}
+	}
+
+	async function exportData() {
+		if (backupBusy) return;
+		backupBusy = true;
+		backupMessage = null;
+		backupError = null;
+		try {
+			await downloadBackup();
+			backupMessage = 'Backup downloaded.';
+		} catch {
+			backupError = 'Could not export data.';
+		} finally {
+			backupBusy = false;
+		}
+	}
+
+	function startImport() {
+		if (backupBusy) return;
+		backupMessage = null;
+		backupError = null;
+		fileInput?.click();
+	}
+
+	async function onImportFile(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		input.value = '';
+		if (!file) return;
+
+		if (
+			!confirm(
+				'Import this backup? All current sessions, custom lists, preferences, and key selection in this browser will be replaced.'
+			)
+		) {
+			return;
+		}
+
+		backupBusy = true;
+		backupMessage = null;
+		backupError = null;
+		try {
+			const backup = await parseBackupFile(file);
+			await applyBackup(backup);
+			await reloadSessions();
+			backupMessage = `Imported ${backup.data.sessions.length} sessions and ${backup.data.customLists.length} custom lists.`;
+		} catch (err) {
+			backupError =
+				err instanceof BackupError ? err.message : 'Could not import backup file.';
+		} finally {
+			backupBusy = false;
+		}
 	}
 
 	function chartPointsFor(rows: StoredSession[], metric: Metric): ChartPoint[] {
@@ -180,10 +268,37 @@
 			<h1>Results</h1>
 			<p class="lede">Sessions saved in this browser.</p>
 		</div>
-		{#if !loading && sessions.length > 0}
-			<button type="button" class="clear-all" onclick={clearAll}>Clear all</button>
+		{#if !loading}
+			<div class="data-actions">
+				<button type="button" class="data-btn" onclick={() => void exportData()} disabled={backupBusy}>
+					Export data
+				</button>
+				<button type="button" class="data-btn" onclick={startImport} disabled={backupBusy}>
+					Import data
+				</button>
+				{#if sessions.length > 0}
+					<button type="button" class="clear-all" onclick={clearAll} disabled={backupBusy}
+						>Clear all</button
+					>
+				{/if}
+			</div>
 		{/if}
 	</div>
+
+	<input
+		{@attach fileInputRef}
+		type="file"
+		accept="application/json,.json"
+		class="file-input"
+		onchange={(e) => void onImportFile(e)}
+	/>
+
+	{#if backupMessage}
+		<p class="backup-status ok" role="status">{backupMessage}</p>
+	{/if}
+	{#if backupError}
+		<p class="backup-status err" role="alert">{backupError}</p>
+	{/if}
 
 	{#if loading}
 		<p class="status muted" role="status">Loading sessions…</p>
@@ -458,6 +573,14 @@
 		margin: 0;
 	}
 
+	.data-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.45rem;
+		margin-top: 0.35rem;
+	}
+
+	.data-btn,
 	.clear-all {
 		border: 1px solid color-mix(in srgb, var(--ink-soft) 35%, transparent);
 		background: transparent;
@@ -467,11 +590,46 @@
 		font: inherit;
 		font-size: 0.9rem;
 		cursor: pointer;
-		margin-top: 0.35rem;
 	}
 
-	.clear-all:hover {
+	.data-btn:hover:not(:disabled) {
+		border-color: var(--teal);
+		color: var(--teal-deep);
+	}
+
+	.clear-all:hover:not(:disabled) {
 		border-color: var(--incorrect);
+		color: var(--incorrect);
+	}
+
+	.data-btn:disabled,
+	.clear-all:disabled {
+		opacity: 0.55;
+		cursor: not-allowed;
+	}
+
+	.file-input {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
+	}
+
+	.backup-status {
+		margin: -1rem 0 1.5rem;
+		font-size: 0.95rem;
+	}
+
+	.backup-status.ok {
+		color: var(--teal-deep);
+	}
+
+	.backup-status.err {
 		color: var(--incorrect);
 	}
 

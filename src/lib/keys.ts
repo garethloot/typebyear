@@ -319,6 +319,25 @@ export function saveKeySelection(keys: string[]): void {
 	}
 }
 
+/** Normalize a key-selection array from backup; returns [] if absent/invalid. */
+export function parseKeySelection(raw: unknown): string[] {
+	if (!Array.isArray(raw)) return [];
+	return [...new Set(raw.filter((c): c is string => typeof c === 'string' && c.length === 1))];
+}
+
+/** Overwrite key selection. Throws on storage failure (quota / private mode). */
+export function replaceKeySelection(keys: string[]): void {
+	if (typeof localStorage === 'undefined') {
+		throw new Error('localStorage unavailable');
+	}
+	const next = parseKeySelection(keys);
+	if (next.length === 0) {
+		localStorage.removeItem(KEYS_STORAGE_KEY);
+		return;
+	}
+	localStorage.setItem(KEYS_STORAGE_KEY, JSON.stringify(next));
+}
+
 export function isKeysPracticeMode(mode: string): boolean {
 	return mode === 'keys' || mode === 'slow-keys';
 }

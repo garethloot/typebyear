@@ -15,8 +15,13 @@
 	const path = $derived(page.url.pathname);
 	const practicePath = resolve('/practice');
 	const resultsPath = resolve('/results');
+	const listsPath = resolve('/lists');
+	const homePath = resolve('/');
 
-	const practiceActive = $derived(path === practicePath || path.startsWith(`${practicePath}/`));
+	const practiceActive = $derived(
+		path === homePath || path === practicePath || path.startsWith(`${practicePath}/`)
+	);
+	const listsActive = $derived(path === listsPath || path.startsWith(`${listsPath}/`));
 	const resultsActive = $derived(path === resultsPath || path.startsWith(`${resultsPath}/`));
 </script>
 
@@ -31,6 +36,13 @@
 			aria-current={practiceActive ? 'page' : undefined}
 		>
 			Practice
+		</a>
+		<a
+			class={['link', listsActive && 'active']}
+			href={listsPath}
+			aria-current={listsActive ? 'page' : undefined}
+		>
+			Lists
 		</a>
 		<a
 			class={['link', resultsActive && 'active']}

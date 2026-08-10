@@ -1,3 +1,4 @@
+import { isCustomListId } from '$lib/customLists';
 import { compareChars, isExactMatch, type CharStatus } from '$lib/compare';
 import { saveSession } from '$lib/history';
 import {
@@ -7,11 +8,13 @@ import {
 } from '$lib/keys';
 import { cancelSpeech, speak } from '$lib/speech';
 import {
-	pickSessionWords,
+	pickSessionPrompts,
+	promptsForTypedWords,
 	SESSION_SIZE,
 	speechLangFor,
+	type PracticeListId,
 	type PracticeMode,
-	type WordListId
+	type PracticePrompt
 } from '$lib/words';
 
 export type SessionPhase = 'idle' | 'active' | 'done';
@@ -36,13 +39,15 @@ export type SessionSummary = {
 	tttMs: number;
 	/** Median characters-per-minute over the TTT window */
 	cpm: number;
-	wordList: WordListId;
+	wordList: PracticeListId;
 	mode: PracticeMode;
 };
 
 export type StartOptions = {
-	/** When set, use these words/keys instead of a random bank sample. */
+	/** When set, use these typed words/keys instead of a random bank sample. */
 	words?: string[];
+	/** Full prompts (spoken + typed). Takes precedence over `words`. */
+	prompts?: PracticePrompt[];
 	mode?: PracticeMode;
 	/** Custom key selection for keys mode (Practice again). */
 	selectedKeys?: string[];
@@ -67,10 +72,15 @@ export function formatTtt(ms: number): string {
 	return `${Math.round(seconds)}s`;
 }
 
+/** Printable non-space character (Space submits). */
+function isFreeTypeChar(char: string): boolean {
+	return char.length === 1 && char !== ' ' && !/\p{Cc}/u.test(char);
+}
+
 class TypingSession {
-	wordList = $state<WordListId>('english_1k');
+	wordList = $state<PracticeListId>('english_1k');
 	mode = $state<PracticeMode>('random');
-	words = $state.raw<string[]>([]);
+	prompts = $state.raw<PracticePrompt[]>([]);
 	/** Last custom key set for keys mode restart. */
 	selectedKeys = $state.raw<string[]>([]);
 	/** Keys-mode preset (or custom) for history / practice again. */
@@ -89,19 +99,24 @@ class TypingSession {
 	/** Keystrokes for the current word (gross CPM numerator). Reset on speak/replay. */
 	wordCharsTyped = $state(0);
 
-	target = $derived(this.words[this.index] ?? '');
+	/** Typed targets for the session (compat for keys restart / Set). */
+	words = $derived(this.prompts.map((p) => p.typed));
+	target = $derived(this.prompts[this.index]?.typed ?? '');
+	spoken = $derived(this.prompts[this.index]?.spoken ?? '');
 	progress = $derived({
-		current: Math.min(this.index + 1, this.words.length),
-		total: this.words.length
+		current: Math.min(this.index + 1, this.prompts.length),
+		total: this.prompts.length
 	});
 	charStatuses = $derived<CharStatus[]>(compareChars(this.input, this.target));
 	isDone = $derived(this.phase === 'done');
 	isKeysMode = $derived(isKeysPracticeMode(this.mode));
+	/** Custom lists allow symbols and preserve case. */
+	allowsFreeTyping = $derived(isCustomListId(this.wordList) && !isKeysPracticeMode(this.mode));
 	speechLang = $derived(speechLangFor(this.wordList));
 
 	summary = $derived.by((): SessionSummary | null => {
 		if (this.phase !== 'done') return null;
-		const total = this.words.length;
+		const total = this.prompts.length;
 		const accuracy = total === 0 ? 0 : Math.round((this.correctCount / total) * 100);
 		return {
 			total,
@@ -114,34 +129,38 @@ class TypingSession {
 		};
 	});
 
-	start(listId: WordListId, options: StartOptions = {}) {
-		const mode = options.mode ?? (options.words ? 'missed' : 'random');
+	start(listId: PracticeListId, options: StartOptions = {}) {
+		const mode = options.mode ?? (options.words || options.prompts ? 'missed' : 'random');
 		const count = options.count ?? SESSION_SIZE;
-		const words =
-			options.words && options.words.length > 0
-				? options.words
-				: pickSessionWords(listId, count);
+		const prompts =
+			options.prompts && options.prompts.length > 0
+				? options.prompts
+				: options.words && options.words.length > 0
+					? isKeysPracticeMode(mode)
+						? options.words.map((typed) => ({ typed, spoken: typed }))
+						: promptsForTypedWords(listId, options.words)
+					: pickSessionPrompts(listId, count);
 
 		cancelSpeech();
 		this.wordList = listId;
 		this.mode = mode;
-		this.words = words;
+		this.prompts = prompts;
 		this.selectedKeys =
 			mode === 'keys' && options.selectedKeys && options.selectedKeys.length > 0
 				? [...options.selectedKeys]
 				: mode === 'keys'
-					? [...new Set(words)]
+					? [...new Set(prompts.map((p) => p.typed))]
 					: [];
 		this.keyPreset = mode === 'keys' ? options.keyPreset : undefined;
 		this.index = 0;
 		this.input = '';
-		this.phase = 'active';
+		this.phase = prompts.length > 0 ? 'active' : 'done';
 		this.correctCount = 0;
 		this.completed = [];
 		this.wordTimings = [];
 		this.typingStartedAt = null;
 		this.wordCharsTyped = 0;
-		this.speakCurrent();
+		if (prompts.length > 0) this.speakCurrent();
 	}
 
 	speakCurrent() {
@@ -153,7 +172,7 @@ class TypingSession {
 		const lang = this.speechLang;
 		const text = isKeysPracticeMode(this.mode)
 			? keySpeechText(this.target, lang)
-			: this.target;
+			: this.spoken || this.target;
 
 		speak(text, lang, () => {
 			if (this.phase !== 'active') return;
@@ -174,6 +193,13 @@ class TypingSession {
 			if (char.length !== 1) return;
 			// Single-key drill: one keystroke fills and ends the attempt
 			this.input = char;
+			this.wordCharsTyped += 1;
+			return;
+		}
+
+		if (this.allowsFreeTyping) {
+			if (!isFreeTypeChar(char)) return;
+			this.input += char;
 			this.wordCharsTyped += 1;
 			return;
 		}
@@ -219,7 +245,7 @@ class TypingSession {
 
 	private advance() {
 		const next = this.index + 1;
-		if (next >= this.words.length) {
+		if (next >= this.prompts.length) {
 			this.phase = 'done';
 			this.input = '';
 			this.typingStartedAt = null;
@@ -238,8 +264,9 @@ class TypingSession {
 	}
 
 	private async persistResult() {
-		const total = this.words.length;
-		const accuracy = total === 0 ? 0 : Math.round((this.correctCount / total) * 100);
+		const total = this.prompts.length;
+		if (total === 0) return;
+		const accuracy = Math.round((this.correctCount / total) * 100);
 		const tttValues = this.wordTimings.map((w) => w.tttMs);
 		const cpmValues = this.wordTimings.map((w) => w.cpm);
 
@@ -268,7 +295,7 @@ class TypingSession {
 
 	reset() {
 		cancelSpeech();
-		this.words = [];
+		this.prompts = [];
 		this.selectedKeys = [];
 		this.keyPreset = undefined;
 		this.index = 0;

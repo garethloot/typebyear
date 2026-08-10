@@ -4,7 +4,14 @@ import {
 	type SlowKeyRank,
 	type StoredKeyPreset
 } from '$lib/keys';
-import { migrateWordListId, type PracticeMode, type WordListId } from '$lib/words';
+import { isCustomListId } from '$lib/customLists';
+import {
+	isPracticeMode,
+	isWordListId,
+	migrateWordListId,
+	type PracticeListId,
+	type PracticeMode
+} from '$lib/words';
 
 const DB_NAME = 'tabtype';
 const DB_VERSION = 2;
@@ -20,7 +27,7 @@ export type StoredWord = {
 export type StoredSession = {
 	id?: number;
 	completedAt: number;
-	wordList: WordListId;
+	wordList: PracticeListId;
 	mode: PracticeMode;
 	/**
 	 * Keys-mode preset used for the session (`'custom'` if the selection
@@ -36,7 +43,7 @@ export type StoredSession = {
 };
 
 export type SessionResultInput = {
-	wordList: WordListId;
+	wordList: PracticeListId;
 	mode: PracticeMode;
 	keyPreset?: StoredKeyPreset;
 	total: number;
@@ -80,9 +87,17 @@ type RawStoredSession = Omit<StoredSession, 'wordList'> & {
 	language?: string;
 };
 
+function normalizeListId(value: string | null | undefined): PracticeListId | null {
+	if (value == null) return null;
+	if (isWordListId(value)) return value;
+	// Keep custom ids even if the list was deleted so history labels still resolve.
+	if (isCustomListId(value)) return value;
+	return migrateWordListId(value);
+}
+
 function normalizeSession(raw: RawStoredSession): StoredSession {
 	const wordList =
-		migrateWordListId(raw.wordList) ?? migrateWordListId(raw.language) ?? 'english_1k';
+		normalizeListId(raw.wordList) ?? migrateWordListId(raw.language) ?? 'english_1k';
 	return {
 		id: raw.id,
 		completedAt: raw.completedAt,
@@ -96,6 +111,59 @@ function normalizeSession(raw: RawStoredSession): StoredSession {
 		cpm: raw.cpm,
 		words: raw.words
 	};
+}
+
+function isFiniteNumber(value: unknown): value is number {
+	return typeof value === 'number' && Number.isFinite(value);
+}
+
+function normalizeStoredWord(raw: unknown): StoredWord | null {
+	if (!raw || typeof raw !== 'object') return null;
+	const obj = raw as Record<string, unknown>;
+	if (typeof obj.word !== 'string' || obj.word.length === 0) return null;
+	if (typeof obj.correct !== 'boolean') return null;
+	const word: StoredWord = { word: obj.word, correct: obj.correct };
+	if (isFiniteNumber(obj.tttMs) && obj.tttMs > 0) word.tttMs = obj.tttMs;
+	return word;
+}
+
+/** Normalize a raw session record for import; returns null if required fields are invalid. */
+export function parseSessionRecord(raw: unknown): StoredSession | null {
+	if (!raw || typeof raw !== 'object') return null;
+	const obj = raw as Record<string, unknown>;
+	if (!isFiniteNumber(obj.completedAt)) return null;
+	if (!isFiniteNumber(obj.total) || !isFiniteNumber(obj.correct)) return null;
+	if (!isFiniteNumber(obj.accuracy) || !isFiniteNumber(obj.cpm)) return null;
+	if (!Array.isArray(obj.words)) return null;
+
+	const words = obj.words
+		.map(normalizeStoredWord)
+		.filter((w): w is StoredWord => w != null);
+	if (words.length !== obj.words.length) return null;
+
+	const tttMs = isFiniteNumber(obj.tttMs) ? obj.tttMs : 0;
+	const mode =
+		typeof obj.mode === 'string' && isPracticeMode(obj.mode) ? obj.mode : ('random' as const);
+	const normalized = normalizeSession({
+		...(obj as RawStoredSession),
+		completedAt: obj.completedAt,
+		total: obj.total,
+		correct: obj.correct,
+		accuracy: obj.accuracy,
+		cpm: obj.cpm,
+		tttMs,
+		mode,
+		words
+	});
+
+	// Drop autoIncrement id so imports reassign cleanly.
+	const { id: _id, ...rest } = normalized;
+	return rest;
+}
+
+function sessionWithoutId(session: StoredSession): Omit<StoredSession, 'id'> {
+	const { id: _id, ...rest } = session;
+	return rest;
 }
 
 export function isIndexedDbAvailable(): boolean {
@@ -163,6 +231,59 @@ export async function listSessions(limit = 20): Promise<StoredSession[]> {
 	}
 }
 
+/** All sessions, newest first. */
+export async function getAllSessions(): Promise<StoredSession[]> {
+	if (!isIndexedDbAvailable()) return [];
+
+	const db = await openDb();
+	try {
+		const tx = db.transaction(STORE, 'readonly');
+		const index = tx.objectStore(STORE).index('byCompletedAt');
+		const results: StoredSession[] = [];
+
+		await new Promise<void>((resolve, reject) => {
+			const cursorReq = index.openCursor(null, 'prev');
+			cursorReq.onerror = () => reject(cursorReq.error ?? new Error('Cursor failed'));
+			cursorReq.onsuccess = () => {
+				const cursor = cursorReq.result;
+				if (!cursor) {
+					resolve();
+					return;
+				}
+				results.push(normalizeSession(cursor.value as RawStoredSession));
+				cursor.continue();
+			};
+		});
+
+		return results;
+	} finally {
+		db.close();
+	}
+}
+
+/**
+ * Wipe sessions and insert the given rows (ids stripped; autoIncrement reassigns).
+ * Preserves completedAt and session content.
+ */
+export async function replaceAllSessions(sessions: StoredSession[]): Promise<void> {
+	if (!isIndexedDbAvailable()) {
+		throw new Error('IndexedDB unavailable');
+	}
+
+	const db = await openDb();
+	try {
+		const tx = db.transaction(STORE, 'readwrite');
+		const store = tx.objectStore(STORE);
+		await req(store.clear());
+		for (const session of sessions) {
+			store.add(sessionWithoutId(session));
+		}
+		await waitForTx(tx);
+	} finally {
+		db.close();
+	}
+}
+
 async function waitForTx(tx: IDBTransaction): Promise<void> {
 	await new Promise<void>((resolve, reject) => {
 		tx.oncomplete = () => resolve();
@@ -220,7 +341,7 @@ export type MissedWordRank = {
  * Higher miss count first; ties broken alphabetically.
  */
 export async function rankMissedWords(
-	wordList: WordListId,
+	wordList: PracticeListId,
 	sessionLimit = 200
 ): Promise<MissedWordRank[]> {
 	const sessions = await listSessions(sessionLimit);
@@ -266,7 +387,7 @@ function median(values: number[]): number {
  * Only includes keys with at least SLOW_KEY_MIN_SAMPLES correct timed hits.
  */
 export async function rankSlowKeys(
-	wordList: WordListId,
+	wordList: PracticeListId,
 	sessionLimit = 200
 ): Promise<SlowKeyRank[]> {
 	const sessions = await listSessions(sessionLimit);

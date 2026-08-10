@@ -1,3 +1,4 @@
+import { getCustomList, isCustomListId, loadCustomLists } from '$lib/customLists';
 import dutch from './dutch.json';
 import dutch_1k from './dutch_1k.json';
 import english from './english.json';
@@ -9,11 +10,27 @@ export type SpeechLanguage = 'en' | 'nl';
 
 export type WordListId = 'english' | 'english_1k' | 'dutch' | 'dutch_1k' | 'typescript';
 
+/** Built-in or custom list id used across prefs, URLs, and history. */
+export type PracticeListId = WordListId | string;
+
+export type PracticePrompt = {
+	typed: string;
+	spoken: string;
+};
+
 export type WordList = {
 	id: WordListId;
 	name: string;
 	speechLang: SpeechLanguage;
 	words: string[];
+};
+
+export type ResolvedList = {
+	id: PracticeListId;
+	name: string;
+	speechLang: SpeechLanguage;
+	prompts: PracticePrompt[];
+	kind: 'builtin' | 'custom';
 };
 
 /**
@@ -37,6 +54,10 @@ const WORD_LIST_BY_ID = Object.fromEntries(WORD_LISTS.map((list) => [list.id, li
 	WordList
 >;
 
+function asPrompts(words: string[]): PracticePrompt[] {
+	return words.map((word) => ({ typed: word, spoken: word }));
+}
+
 /** Map legacy language codes (and current list ids) to a word list id. */
 export function migrateWordListId(value: string | null | undefined): WordListId | null {
 	if (value == null) return null;
@@ -57,23 +78,58 @@ export function isWordListId(value: string | null | undefined): value is WordLis
 	);
 }
 
+/** True when the id is a known built-in or a custom list currently in storage. */
+export function isPracticeListId(value: string | null | undefined): value is PracticeListId {
+	if (value == null) return false;
+	if (isWordListId(value)) return true;
+	return isCustomListId(value) && getCustomList(value) != null;
+}
+
 export function getWordList(id: WordListId): WordList {
 	return WORD_LIST_BY_ID[id];
 }
 
-export function wordListLabel(id: WordListId): string {
-	return WORD_LIST_BY_ID[id].name;
+export function resolveList(id: PracticeListId): ResolvedList | null {
+	if (isWordListId(id)) {
+		const list = WORD_LIST_BY_ID[id];
+		return {
+			id: list.id,
+			name: list.name,
+			speechLang: list.speechLang,
+			prompts: asPrompts(list.words),
+			kind: 'builtin'
+		};
+	}
+	if (!isCustomListId(id)) return null;
+	const custom = getCustomList(id);
+	if (!custom) return null;
+	return {
+		id: custom.id,
+		name: custom.name,
+		speechLang: custom.speechLang,
+		prompts: custom.prompts.map((p) => ({ typed: p.typed, spoken: p.spoken })),
+		kind: 'custom'
+	};
 }
 
-export function speechLangFor(id: WordListId): SpeechLanguage {
-	return WORD_LIST_BY_ID[id].speechLang;
+export function wordListLabel(id: PracticeListId): string {
+	const resolved = resolveList(id);
+	if (resolved) return resolved.name;
+	if (isCustomListId(id)) return 'Deleted list';
+	return String(id);
+}
+
+export function speechLangFor(id: PracticeListId): SpeechLanguage {
+	const resolved = resolveList(id);
+	if (resolved) return resolved.speechLang;
+	return 'en';
 }
 
 /** Canonical list id for a speech language, keeping `preferred` when it already matches. */
 export function listIdForSpeechLang(
 	lang: SpeechLanguage,
-	preferred?: WordListId
-): WordListId {
+	preferred?: PracticeListId
+): PracticeListId {
 	if (preferred && speechLangFor(preferred) === lang) return preferred;
 	return lang === 'nl' ? 'dutch_1k' : 'english_1k';
 }
@@ -87,9 +143,38 @@ export function shuffle<T>(items: T[]): T[] {
 	return arr;
 }
 
-export function pickSessionWords(listId: WordListId, count = SESSION_SIZE): string[] {
-	const bank = WORD_LIST_BY_ID[listId].words;
-	return shuffle(bank).slice(0, Math.min(count, bank.length));
+export function pickSessionPrompts(listId: PracticeListId, count = SESSION_SIZE): PracticePrompt[] {
+	const resolved = resolveList(listId);
+	if (!resolved || resolved.prompts.length === 0) return [];
+	return shuffle(resolved.prompts).slice(0, Math.min(count, resolved.prompts.length));
+}
+
+/** @deprecated Prefer pickSessionPrompts — kept for callers that only need typed strings. */
+export function pickSessionWords(listId: PracticeListId, count = SESSION_SIZE): string[] {
+	return pickSessionPrompts(listId, count).map((p) => p.typed);
+}
+
+/**
+ * Map typed targets to practice prompts, looking up spoken labels from the list.
+ * Falls back to speaking the typed string when the item is missing.
+ */
+export function promptsForTypedWords(
+	listId: PracticeListId,
+	typedWords: string[]
+): PracticePrompt[] {
+	const resolved = resolveList(listId);
+	const spokenByTyped = new Map<string, string>();
+	if (resolved) {
+		for (const prompt of resolved.prompts) {
+			if (!spokenByTyped.has(prompt.typed)) {
+				spokenByTyped.set(prompt.typed, prompt.spoken);
+			}
+		}
+	}
+	return typedWords.map((typed) => ({
+		typed,
+		spoken: spokenByTyped.get(typed) ?? typed
+	}));
 }
 
 /**
@@ -130,4 +215,9 @@ export function pickMissedSessionWords(
 
 export function isPracticeMode(value: string | null): value is PracticeMode {
 	return value === 'random' || value === 'missed' || value === 'keys' || value === 'slow-keys';
+}
+
+/** Custom lists currently available for the home picker. */
+export function listCustomListOptions(): Array<{ id: string; name: string }> {
+	return loadCustomLists().map((list) => ({ id: list.id, name: list.name }));
 }

@@ -77,6 +77,15 @@ function isFreeTypeChar(char: string): boolean {
 	return char.length === 1 && char !== ' ' && !/\p{Cc}/u.test(char);
 }
 
+/**
+ * Built-in letter lists accept a-z only.
+ * A fully numeric target (times tables) accepts digits so the product can be typed.
+ */
+function isBuiltinTypeChar(char: string, target: string): boolean {
+	if (/^\d+$/.test(target)) return /^\d$/.test(char);
+	return /^[a-z]$/.test(char);
+}
+
 class TypingSession {
 	wordList = $state<PracticeListId>('english_1k');
 	mode = $state<PracticeMode>('random');
@@ -204,7 +213,7 @@ class TypingSession {
 			return;
 		}
 
-		if (!/^[a-z]$/.test(char)) return;
+		if (!isBuiltinTypeChar(char, this.target)) return;
 		this.input += char;
 		this.wordCharsTyped += 1;
 	}

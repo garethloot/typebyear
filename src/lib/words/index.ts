@@ -3,12 +3,19 @@ import dutch from './dutch.json';
 import dutch_1k from './dutch_1k.json';
 import english from './english.json';
 import english_1k from './english_1k.json';
+import { rekentafels } from './rekentafels';
 import ts from './ts.json';
 
 /** Language tag used for TTS / key speech names. */
 export type SpeechLanguage = 'en' | 'nl';
 
-export type WordListId = 'english' | 'english_1k' | 'dutch' | 'dutch_1k' | 'typescript';
+export type WordListId =
+	| 'english'
+	| 'english_1k'
+	| 'dutch'
+	| 'dutch_1k'
+	| 'typescript'
+	| 'rekentafels';
 
 /** Built-in or custom list id used across prefs, URLs, and history. */
 export type PracticeListId = WordListId | string;
@@ -18,12 +25,23 @@ export type PracticePrompt = {
 	spoken: string;
 };
 
-export type WordList = {
+type WordListBase = {
 	id: WordListId;
 	name: string;
 	speechLang: SpeechLanguage;
+};
+
+/** Each entry is both spoken and typed. */
+export type WordBankList = WordListBase & {
 	words: string[];
 };
+
+/** Spoken prompt and typed answer differ (for example times tables). */
+export type PromptBankList = WordListBase & {
+	prompts: PracticePrompt[];
+};
+
+export type WordList = WordBankList | PromptBankList;
 
 export type ResolvedList = {
 	id: PracticeListId;
@@ -46,6 +64,7 @@ export const WORD_LISTS: WordList[] = [
 	{ id: 'english_1k', name: 'English 1k', speechLang: 'en', words: english_1k },
 	{ id: 'dutch', name: 'Dutch', speechLang: 'nl', words: dutch },
 	{ id: 'dutch_1k', name: 'Dutch 1k', speechLang: 'nl', words: dutch_1k },
+	{ id: 'rekentafels', name: 'Rekentafels', speechLang: 'nl', prompts: rekentafels },
 	{ id: 'typescript', name: 'TypeScript', speechLang: 'en', words: ts }
 ];
 
@@ -56,6 +75,13 @@ const WORD_LIST_BY_ID = Object.fromEntries(WORD_LISTS.map((list) => [list.id, li
 
 function asPrompts(words: string[]): PracticePrompt[] {
 	return words.map((word) => ({ typed: word, spoken: word }));
+}
+
+function builtinPrompts(list: WordList): PracticePrompt[] {
+	if ('prompts' in list) {
+		return list.prompts.map((prompt) => ({ typed: prompt.typed, spoken: prompt.spoken }));
+	}
+	return asPrompts(list.words);
 }
 
 /** Map legacy language codes (and current list ids) to a word list id. */
@@ -74,7 +100,8 @@ export function isWordListId(value: string | null | undefined): value is WordLis
 		value === 'english_1k' ||
 		value === 'dutch' ||
 		value === 'dutch_1k' ||
-		value === 'typescript'
+		value === 'typescript' ||
+		value === 'rekentafels'
 	);
 }
 
@@ -96,7 +123,7 @@ export function resolveList(id: PracticeListId): ResolvedList | null {
 			id: list.id,
 			name: list.name,
 			speechLang: list.speechLang,
-			prompts: asPrompts(list.words),
+			prompts: builtinPrompts(list),
 			kind: 'builtin'
 		};
 	}

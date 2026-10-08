@@ -4,6 +4,7 @@ import dutch_1k from './dutch_1k.json';
 import english from './english.json';
 import english_1k from './english_1k.json';
 import { rekentafels } from './rekentafels';
+import { rekentafelsMoeilijk } from './rekentafelsMoeilijk';
 import ts from './ts.json';
 
 /** Language tag used for TTS / key speech names. */
@@ -15,7 +16,8 @@ export type WordListId =
 	| 'dutch'
 	| 'dutch_1k'
 	| 'typescript'
-	| 'rekentafels';
+	| 'rekentafels'
+	| 'rekentafels_moeilijk';
 
 /** Built-in or custom list id used across prefs, URLs, and history. */
 export type PracticeListId = WordListId | string;
@@ -65,6 +67,12 @@ export const WORD_LISTS: WordList[] = [
 	{ id: 'dutch', name: 'Dutch', speechLang: 'nl', words: dutch },
 	{ id: 'dutch_1k', name: 'Dutch 1k', speechLang: 'nl', words: dutch_1k },
 	{ id: 'rekentafels', name: 'Rekentafels', speechLang: 'nl', prompts: rekentafels },
+	{
+		id: 'rekentafels_moeilijk',
+		name: 'Rekentafels moeilijk',
+		speechLang: 'nl',
+		prompts: rekentafelsMoeilijk
+	},
 	{ id: 'typescript', name: 'TypeScript', speechLang: 'en', words: ts }
 ];
 
@@ -101,7 +109,8 @@ export function isWordListId(value: string | null | undefined): value is WordLis
 		value === 'dutch' ||
 		value === 'dutch_1k' ||
 		value === 'typescript' ||
-		value === 'rekentafels'
+		value === 'rekentafels' ||
+		value === 'rekentafels_moeilijk'
 	);
 }
 
